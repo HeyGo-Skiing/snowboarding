@@ -1,0 +1,1139 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IMU-靴子姿态可视化工具</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/STLLoader.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f7fa;
+            color: #333;
+        }
+        .slider-controls {
+            margin-top: 15px;
+        }
+        .slider-group {
+            margin-bottom: 15px;
+        }
+        .slider-group label {
+            display: block;
+            font-size: 14px;
+            color: #2c3e50;
+            margin-bottom: 5px;
+        }
+        .slider-group input[type="range"] {
+            width: 100%;
+            height: 6px;
+            -webkit-appearance: none;
+            appearance: none;
+            background: #ddd;
+            outline: none;
+            opacity: 0.7;
+            transition: opacity 0.2s;
+            cursor: pointer;
+            border-radius: 3px;
+        }
+        .slider-group input[type="range"]:hover {
+            opacity: 1;
+        }
+        .slider-group input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 14px;
+            height: 14px;
+            background: #3498db;
+            cursor: pointer;
+            border-radius: 50%;
+        }
+        .slider-group input[type="range"]::-moz-range-thumb {
+            width: 14px;
+            height: 14px;
+            background: #3498db;
+            cursor: pointer;
+            border-radius: 50%;
+            border: none;
+        }
+        .container {
+            display: flex;
+            height: 100vh;
+        }
+        .left-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        .right-panel {
+            width: 400px;
+            padding: 20px;
+            background: white;
+            overflow-y: auto;
+            box-shadow: -2px 0 10px rgba(0,0,0,0.1);
+        }
+        .viewer-container {
+            flex: 1;
+            position: relative;
+            border-bottom: 1px solid #ddd;
+        }
+        .viewer-title {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 5px 15px;
+            border-radius: 5px;
+            font-weight: 600;
+            z-index: 100;
+        }
+        .controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px 25px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-direction: column;
+            width: 80%;
+            max-width: 600px;
+        }
+        .button-group {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+        .slider-container {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .time-slider {
+            flex: 1;
+            height: 6px;
+            -webkit-appearance: none;
+            appearance: none;
+            background: #ddd;
+            outline: none;
+            opacity: 0.7;
+            transition: opacity 0.2s;
+            cursor: pointer;
+        }
+        .time-slider:hover {
+            opacity: 1;
+        }
+        .time-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            background: #3498db;
+            cursor: pointer;
+            border-radius: 50%;
+        }
+        .time-slider::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            background: #3498db;
+            cursor: pointer;
+            border-radius: 50%;
+            border: none;
+        }
+        button {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: background 0.3s;
+        }
+        button:hover {
+            background: #2980b9;
+        }
+        button:disabled {
+            background: #bdc3c7;
+            cursor: not-allowed;
+        }
+        .section {
+            margin-bottom: 25px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        .section h3 {
+            margin-top: 0;
+            color: #2c3e50;
+            font-size: 18px;
+        }
+        input[type="file"] {
+            padding: 10px;
+            border: 2px dashed #ddd;
+            border-radius: 5px;
+            width: 100%;
+            background: white;
+            margin-bottom: 10px;
+        }
+        .transform-inputs {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .input-group {
+            display: flex;
+            flex-direction: column;
+        }
+        .input-group label {
+            font-size: 12px;
+            color: #7f8c8d;
+            margin-bottom: 3px;
+        }
+        .input-group input[type="number"] {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            font-size: 14px;
+        }
+        .info-item {
+            padding: 8px;
+            background: white;
+            border-radius: 4px;
+        }
+        .info-label {
+            color: #7f8c8d;
+            font-size: 12px;
+        }
+        .info-value {
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        .chart-container {
+            height: 250px;
+            margin-top: 15px;
+        }
+        .time-display {
+            font-family: monospace;
+            font-size: 16px;
+            color: #2c3e50;
+        }
+        .axes-legend {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 12px;
+        }
+        .axes-legend div {
+            margin: 2px 0;
+        }
+        #staticViewer {
+            border-bottom: 2px solid #3498db;
+        }
+        .view-controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 12px;
+        }
+        .view-controls button {
+            padding: 5px 10px;
+            margin: 2px;
+            font-size: 12px;
+        }
+        .display-controls {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            z-index: 100;
+        }
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            margin: 5px 0;
+        }
+        .checkbox-group input[type="checkbox"] {
+            margin-right: 5px;
+        }
+        .checkbox-group label {
+            font-size: 13px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="left-panel">
+            <div class="viewer-container" id="staticViewer">
+                <div class="viewer-title">静态相对位置</div>
+                <div class="view-controls">
+                    <button onclick="setView('top', 'static')">俯视</button>
+                    <button onclick="setView('front', 'static')">前视</button>
+                    <button onclick="setView('side', 'static')">侧视</button>
+                    <button onclick="setView('iso', 'static')">3D</button>
+                </div>
+                <div class="axes-legend">
+                    <div style="color: #ff0000;">● X轴 (前/红)</div>
+                    <div style="color: #00ff00;">● Y轴 (右/绿)</div>
+                    <div style="color: #0000ff;">● Z轴 (上/蓝)</div>
+                </div>
+            </div>
+            <div class="viewer-container" id="animationViewer">
+                <div class="viewer-title">旋转动画</div>
+                <div class="view-controls">
+                    <button onclick="setView('top', 'anim')">俯视</button>
+                    <button onclick="setView('front', 'anim')">前视</button>
+                    <button onclick="setView('side', 'anim')">侧视</button>
+                    <button onclick="setView('iso', 'anim')">3D</button>
+                </div>
+                <div class="display-controls">
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="showGrid" onchange="toggleDisplayOptions()">
+                        <label for="showGrid">显示网格</label>
+                    </div>
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="showAxes" onchange="toggleDisplayOptions()">
+                        <label for="showAxes">显示坐标轴</label>
+                    </div>
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="showIMU" onchange="toggleDisplayOptions()">
+                        <label for="showIMU">显示IMU</label>
+                    </div>
+                </div>
+                <div class="controls">
+                    <div class="button-group">
+                        <button id="playBtn" disabled>▶ 播放</button>
+                        <button id="pauseBtn" disabled>⏸ 暂停</button>
+                        <button id="resetBtn" disabled>↺ 重置</button>
+                        <div class="time-display">
+                            时间: <span id="currentTime">0.000</span>s
+                        </div>
+                    </div>
+                    <div class="slider-container">
+                        <span>0s</span>
+                        <input type="range" class="time-slider" id="timeSlider" min="0" max="100" value="0" disabled>
+                        <span id="maxTime">0s</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="right-panel">
+            <h2>IMU-靴子姿态可视化</h2>
+            
+            <div class="section">
+                <h3>📁 模型和数据导入</h3>
+                <div>
+                    <label>靴子模型 (STL格式):</label>
+                    <input type="file" id="stlInput" accept=".stl">
+                </div>
+                <div>
+                    <label>IMU数据 (CSV格式):</label>
+                    <input type="file" id="csvInput" accept=".csv,.txt">
+                </div>
+            </div>
+            
+            <div class="section">
+                <h3>🔄 STL模型旋转调整</h3>
+                <div class="slider-controls">
+                    <div class="slider-group">
+                        <label>X轴旋转: <span id="stlRotXValue">0</span>°</label>
+                        <input type="range" id="stlRotX" min="-180" max="180" value="0" step="1" oninput="updateSTLRotationPreview()">
+                    </div>
+                    <div class="slider-group">
+                        <label>Y轴旋转: <span id="stlRotYValue">0</span>°</label>
+                        <input type="range" id="stlRotY" min="-180" max="180" value="0" step="1" oninput="updateSTLRotationPreview()">
+                    </div>
+                    <div class="slider-group">
+                        <label>Z轴旋转: <span id="stlRotZValue">0</span>°</label>
+                        <input type="range" id="stlRotZ" min="-180" max="180" value="0" step="1" oninput="updateSTLRotationPreview()">
+                    </div>
+                    <button onclick="resetSTLRotation()" style="margin-top: 10px; width: 100%;">重置旋转</button>
+                </div>
+            </div>
+            
+            <div class="section">
+                <h3>🔧 IMU相对位置设置（世界坐标系）</h3>
+                <div class="transform-inputs">
+                    <div class="input-group">
+                        <label>平移 X (mm)</label>
+                        <input type="number" id="transX" value="0" step="1">
+                    </div>
+                    <div class="input-group">
+                        <label>平移 Y (mm)</label>
+                        <input type="number" id="transY" value="0" step="1">
+                    </div>
+                    <div class="input-group">
+                        <label>平移 Z (mm)</label>
+                        <input type="number" id="transZ" value="0" step="1">
+                    </div>
+                    <div class="input-group">
+                        <label>旋转 X (°)</label>
+                        <input type="number" id="rotX" value="0" step="1">
+                    </div>
+                    <div class="input-group">
+                        <label>旋转 Y (°)</label>
+                        <input type="number" id="rotY" value="0" step="1">
+                    </div>
+                    <div class="input-group">
+                        <label>旋转 Z (°)</label>
+                        <input type="number" id="rotZ" value="0" step="1">
+                    </div>
+                </div>
+                <button onclick="updateIMUPosition()" style="margin-top: 10px; width: 100%;">应用位置设置</button>
+            </div>
+            
+            <div class="section" id="dataInfo" style="display: none;">
+                <h3>📊 数据信息</h3>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <div class="info-label">数据点数</div>
+                        <div class="info-value" id="dataPoints">0</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">采样率</div>
+                        <div class="info-value" id="sampleRate">0 Hz</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">总时长</div>
+                        <div class="info-value" id="duration">0s</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">当前帧</div>
+                        <div class="info-value" id="currentFrame">0</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="section" id="angleInfo" style="display: none;">
+                <h3>📐 当前欧拉角</h3>
+                <h4 style="font-size: 14px; margin: 10px 0 5px 0;">绝对欧拉角</h4>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <div class="info-label">Roll (X轴)</div>
+                        <div class="info-value" id="absRoll">0.00°</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Pitch (Y轴)</div>
+                        <div class="info-value" id="absPitch">0.00°</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Yaw (Z轴)</div>
+                        <div class="info-value" id="absYaw">0.00°</div>
+                    </div>
+                </div>
+                <h4 style="font-size: 14px; margin: 15px 0 5px 0;">相对欧拉角（相对初始姿态）</h4>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <div class="info-label">Roll (X轴)</div>
+                        <div class="info-value" id="relRoll">0.00°</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Pitch (Y轴)</div>
+                        <div class="info-value" id="relPitch">0.00°</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Yaw (Z轴)</div>
+                        <div class="info-value" id="relYaw">0.00°</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="section" id="chartSection" style="display: none;">
+                <h3>📈 欧拉角变化曲线</h3>
+                <div class="chart-container">
+                    <canvas id="angleChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 全局变量
+        let staticScene, staticCamera, staticRenderer;
+        let animScene, animCamera, animRenderer;
+        let bootModel = null;
+        let imuBox1, imuBox2;
+        let bootGroup1, bootGroup2;
+        let imuData = [];
+        let currentIndex = 0;
+        let isPlaying = false;
+        let angleChart = null;
+        let initialAngles = null;
+        let bootHeight = 150; // 默认靴子高度150mm
+        
+        // 动画场景中的显示元素
+        let animGrid, animAxes;
+
+        // 鼠标控制
+        let mouseStates = {
+            static: { down: false, x: 0, y: 0, angleX: 0, angleY: -90, distance: 400 },
+            anim: { down: false, x: 0, y: 0, angleX: 0, angleY: -90, distance: 400 }
+        };
+
+        // IMU相对位置参数
+        let imuTransform = {
+            position: { x: 0, y: 0, z: 0 },
+            rotation: { x: 0, y: 0, z: 0 }
+        };
+
+        // STL模型旋转参数
+        let stlRotation = {
+            x: 0,
+            y: 0,
+            z: 0
+        };
+
+        // 初始化场景
+        function initScenes() {
+            // 静态场景
+            const staticContainer = document.getElementById('staticViewer');
+            staticScene = new THREE.Scene();
+            staticScene.background = new THREE.Color(0xf5f5f5);
+            
+            staticCamera = new THREE.PerspectiveCamera(
+                50,
+                staticContainer.offsetWidth / staticContainer.offsetHeight,
+                0.1,
+                2000
+            );
+            
+            staticRenderer = new THREE.WebGLRenderer({ antialias: true });
+            staticRenderer.setSize(staticContainer.offsetWidth, staticContainer.offsetHeight);
+            staticRenderer.shadowMap.enabled = true;
+            staticContainer.appendChild(staticRenderer.domElement);
+            
+            // 动画场景
+            const animContainer = document.getElementById('animationViewer');
+            animScene = new THREE.Scene();
+            animScene.background = new THREE.Color(0xf0f0f0);
+            
+            animCamera = new THREE.PerspectiveCamera(
+                50,
+                animContainer.offsetWidth / animContainer.offsetHeight,
+                0.1,
+                2000
+            );
+            
+            animRenderer = new THREE.WebGLRenderer({ antialias: true });
+            animRenderer.setSize(animContainer.offsetWidth, animContainer.offsetHeight);
+            animRenderer.shadowMap.enabled = true;
+            animContainer.appendChild(animRenderer.domElement);
+            
+            // 添加光照
+            [staticScene, animScene].forEach(scene => {
+                const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+                scene.add(ambientLight);
+                
+                const directionalLight1 = new THREE.DirectionalLight(0xffffff, 0.4);
+                directionalLight1.position.set(10, 20, 10);
+                directionalLight1.castShadow = true;
+                scene.add(directionalLight1);
+                
+                const directionalLight2 = new THREE.DirectionalLight(0xffffff, 0.2);
+                directionalLight2.position.set(-10, 20, -10);
+                scene.add(directionalLight2);
+            });
+            
+            // 添加网格（XY平面）
+            const gridHelper1 = new THREE.GridHelper(400, 40, 0x888888, 0xcccccc);
+            gridHelper1.rotateX(Math.PI / 2); // 旋转到XY平面
+            staticScene.add(gridHelper1);
+            
+            animGrid = new THREE.GridHelper(400, 40, 0x888888, 0xcccccc);
+            animGrid.rotateX(Math.PI / 2); // 旋转到XY平面
+            animGrid.visible = false; // 默认隐藏
+            animScene.add(animGrid);
+            
+            // 添加坐标轴
+            const axes1 = new THREE.AxesHelper(150);
+            staticScene.add(axes1);
+            
+            animAxes = new THREE.AxesHelper(150);
+            animAxes.visible = false; // 默认隐藏
+            animScene.add(animAxes);
+            
+            // 创建靴子组
+            bootGroup1 = new THREE.Group();
+            bootGroup2 = new THREE.Group();
+            staticScene.add(bootGroup1);
+            animScene.add(bootGroup2);
+            
+            // 创建IMU
+            createIMUs();
+            
+            // 设置相机位置（从上往下看）
+            updateCameraPositions();
+            
+            // 鼠标事件
+            setupMouseControls(staticRenderer.domElement, 'static');
+            setupMouseControls(animRenderer.domElement, 'anim');
+            
+            // 窗口大小调整
+            window.addEventListener('resize', onWindowResize);
+            
+            animate();
+        }
+
+        // 创建IMU模型
+        function createIMUs() {
+            // IMU固定尺寸：X和Y轴60mm，Z轴20mm
+            const geometry = new THREE.BoxGeometry(60, 60, 20);
+            const material = new THREE.MeshPhongMaterial({
+                color: 0x2ecc71,
+                transparent: true,
+                opacity: 0.8
+            });
+            
+            // 静态场景的IMU（初始位置在原点）
+            imuBox1 = new THREE.Mesh(geometry, material);
+            imuBox1.castShadow = true;
+            imuBox1.receiveShadow = true;
+            
+            const edges1 = new THREE.EdgesGeometry(geometry);
+            const edgeMaterial1 = new THREE.LineBasicMaterial({ color: 0x000000 });
+            const wireframe1 = new THREE.LineSegments(edges1, edgeMaterial1);
+            imuBox1.add(wireframe1);
+            
+            const localAxes1 = new THREE.AxesHelper(40);
+            imuBox1.add(localAxes1);
+            
+            bootGroup1.add(imuBox1);
+            
+            // 动画场景的IMU
+            imuBox2 = new THREE.Mesh(geometry.clone(), material.clone());
+            imuBox2.castShadow = true;
+            imuBox2.receiveShadow = true;
+            imuBox2.visible = false; // 默认隐藏
+            
+            const edges2 = new THREE.EdgesGeometry(geometry);
+            const edgeMaterial2 = new THREE.LineBasicMaterial({ color: 0x000000 });
+            const wireframe2 = new THREE.LineSegments(edges2, edgeMaterial2);
+            imuBox2.add(wireframe2);
+            
+            const localAxes2 = new THREE.AxesHelper(40);
+            imuBox2.add(localAxes2);
+            
+            bootGroup2.add(imuBox2);
+            
+            updateIMUPosition();
+        }
+
+        // 切换显示选项
+        function toggleDisplayOptions() {
+            const showGrid = document.getElementById('showGrid').checked;
+            const showAxes = document.getElementById('showAxes').checked;
+            const showIMU = document.getElementById('showIMU').checked;
+            
+            if (animGrid) animGrid.visible = showGrid;
+            if (animAxes) animAxes.visible = showAxes;
+            if (imuBox2) imuBox2.visible = showIMU;
+        }
+
+        // 实时更新STL模型旋转预览
+        function updateSTLRotationPreview() {
+            // 更新显示值
+            document.getElementById('stlRotXValue').textContent = document.getElementById('stlRotX').value;
+            document.getElementById('stlRotYValue').textContent = document.getElementById('stlRotY').value;
+            document.getElementById('stlRotZValue').textContent = document.getElementById('stlRotZ').value;
+            
+            // 立即应用旋转
+            updateSTLRotation();
+        }
+
+        // 更新STL模型旋转
+        function updateSTLRotation() {
+            stlRotation.x = parseFloat(document.getElementById('stlRotX').value) * Math.PI / 180;
+            stlRotation.y = parseFloat(document.getElementById('stlRotY').value) * Math.PI / 180;
+            stlRotation.z = parseFloat(document.getElementById('stlRotZ').value) * Math.PI / 180;
+            
+            // 更新两个场景中的靴子旋转
+            [bootGroup1, bootGroup2].forEach(group => {
+                const boot = group.children.find(child => child.name === 'boot');
+                if (boot && boot.userData.baseRotation) {
+                    boot.rotation.x = boot.userData.baseRotation.x + stlRotation.x;
+                    boot.rotation.y = boot.userData.baseRotation.y + stlRotation.y;
+                    boot.rotation.z = boot.userData.baseRotation.z + stlRotation.z;
+                }
+            });
+        }
+
+        // 重置STL旋转
+        function resetSTLRotation() {
+            document.getElementById('stlRotX').value = 0;
+            document.getElementById('stlRotY').value = 0;
+            document.getElementById('stlRotZ').value = 0;
+            updateSTLRotationPreview();
+        }
+
+        // 更新IMU位置（使用世界坐标系）
+        function updateIMUPosition() {
+            imuTransform.position.x = parseFloat(document.getElementById('transX').value);
+            imuTransform.position.y = parseFloat(document.getElementById('transY').value);
+            imuTransform.position.z = parseFloat(document.getElementById('transZ').value);
+            imuTransform.rotation.x = parseFloat(document.getElementById('rotX').value) * Math.PI / 180;
+            imuTransform.rotation.y = parseFloat(document.getElementById('rotY').value) * Math.PI / 180;
+            imuTransform.rotation.z = parseFloat(document.getElementById('rotZ').value) * Math.PI / 180;
+            
+            [imuBox1, imuBox2].forEach(imu => {
+                if (imu) {
+                    imu.position.set(
+                        imuTransform.position.x,
+                        imuTransform.position.y,
+                        imuTransform.position.z
+                    );
+                    imu.rotation.set(
+                        imuTransform.rotation.x,
+                        imuTransform.rotation.y,
+                        imuTransform.rotation.z
+                    );
+                }
+            });
+        }
+
+        // 设置视角
+        function setView(view, type) {
+            let distance = mouseStates[type].distance;
+            switch(view) {
+                case 'top':
+                    mouseStates[type].angleX = 0;
+                    mouseStates[type].angleY = -90;
+                    break;
+                case 'front':
+                    mouseStates[type].angleX = 0;
+                    mouseStates[type].angleY = 0;
+                    break;
+                case 'side':
+                    mouseStates[type].angleX = 90;
+                    mouseStates[type].angleY = 0;
+                    break;
+                case 'iso':
+                    mouseStates[type].angleX = 45;
+                    mouseStates[type].angleY = -45;
+                    break;
+            }
+            updateCameraPositions();
+        }
+
+        // 设置鼠标控制
+        function setupMouseControls(element, type) {
+            element.addEventListener('mousedown', (e) => onMouseDown(e, type));
+            element.addEventListener('mouseup', () => onMouseUp(type));
+            element.addEventListener('mousemove', (e) => onMouseMove(e, type));
+            element.addEventListener('mouseleave', () => onMouseUp(type));
+            element.addEventListener('wheel', (e) => onWheel(e, type), { passive: false });
+        }
+
+        function onMouseDown(event, type) {
+            mouseStates[type].down = true;
+            mouseStates[type].x = event.clientX;
+            mouseStates[type].y = event.clientY;
+        }
+
+        function onMouseUp(type) {
+            mouseStates[type].down = false;
+        }
+
+        function onMouseMove(event, type) {
+            if (!mouseStates[type].down) return;
+            
+            const deltaX = event.clientX - mouseStates[type].x;
+            const deltaY = event.clientY - mouseStates[type].y;
+            
+            mouseStates[type].angleX += deltaX * 0.5;
+            mouseStates[type].angleY = Math.max(-179, Math.min(-1, mouseStates[type].angleY - deltaY * 0.5));
+            
+            mouseStates[type].x = event.clientX;
+            mouseStates[type].y = event.clientY;
+            
+            updateCameraPositions();
+        }
+
+        function onWheel(event, type) {
+            event.preventDefault();
+            mouseStates[type].distance = Math.max(50, Math.min(1000, mouseStates[type].distance + event.deltaY * 0.2));
+            updateCameraPositions();
+        }
+
+        function updateCameraPositions() {
+            // 更新静态相机
+            const staticState = mouseStates.static;
+            const radX1 = staticState.angleX * Math.PI / 180;
+            const radY1 = staticState.angleY * Math.PI / 180;
+            
+            staticCamera.position.x = staticState.distance * Math.sin(-radY1) * Math.sin(radX1);
+            staticCamera.position.y = staticState.distance * Math.sin(-radY1) * Math.cos(radX1);
+            staticCamera.position.z = staticState.distance * Math.cos(-radY1);
+            staticCamera.lookAt(0, 0, 0);
+            
+            // 更新动画相机
+            const animState = mouseStates.anim;
+            const radX2 = animState.angleX * Math.PI / 180;
+            const radY2 = animState.angleY * Math.PI / 180;
+            
+            animCamera.position.x = animState.distance * Math.sin(-radY2) * Math.sin(radX2);
+            animCamera.position.y = animState.distance * Math.sin(-radY2) * Math.cos(radX2);
+            animCamera.position.z = animState.distance * Math.cos(-radY2);
+            animCamera.lookAt(0, 0, 0);
+        }
+
+        function onWindowResize() {
+            const staticContainer = document.getElementById('staticViewer');
+            const animContainer = document.getElementById('animationViewer');
+            
+            staticCamera.aspect = staticContainer.offsetWidth / staticContainer.offsetHeight;
+            staticCamera.updateProjectionMatrix();
+            staticRenderer.setSize(staticContainer.offsetWidth, staticContainer.offsetHeight);
+            
+            animCamera.aspect = animContainer.offsetWidth / animContainer.offsetHeight;
+            animCamera.updateProjectionMatrix();
+            animRenderer.setSize(animContainer.offsetWidth, animContainer.offsetHeight);
+        }
+
+        // 文件加载
+        document.getElementById('stlInput').addEventListener('change', loadSTL);
+        document.getElementById('csvInput').addEventListener('change', loadCSV);
+
+        function loadSTL(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            // 重置STL旋转滑块
+            resetSTLRotation();
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const loader = new THREE.STLLoader();
+                const geometry = loader.parse(e.target.result);
+                
+                // 计算靴子尺寸
+                geometry.computeBoundingBox();
+                const box = geometry.boundingBox;
+                
+                // 保持STL文件的原始坐标系和位置
+                // 不进行任何自动旋转或位置调整
+                // 计算模型尺寸，但不改变方向
+                const sizeX = box.max.x - box.min.x;
+                const sizeY = box.max.y - box.min.y;
+                const sizeZ = box.max.z - box.min.z;
+                
+                // 使用Z轴作为高度（保持原始坐标系）
+                bootHeight = sizeZ;
+                
+                // 创建靴子模型
+                const material = new THREE.MeshPhongMaterial({
+                    color: 0x808080,  // 灰色
+                    specular: 0x222222,
+                    shininess: 25
+                });
+                
+                // 清除旧模型
+                [bootGroup1, bootGroup2].forEach(group => {
+                    const oldBoot = group.children.find(child => child.name === 'boot');
+                    if (oldBoot) group.remove(oldBoot);
+                });
+                
+                // 添加新模型 - 保持原始位置和方向
+                const boot1 = new THREE.Mesh(geometry, material);
+                boot1.name = 'boot';
+                boot1.castShadow = true;
+                boot1.receiveShadow = true;
+                
+                // 保存基础旋转（初始为0）
+                boot1.userData.baseRotation = new THREE.Vector3(0, 0, 0);
+                
+                // 应用用户设置的旋转
+                boot1.rotation.x = stlRotation.x;
+                boot1.rotation.y = stlRotation.y;
+                boot1.rotation.z = stlRotation.z;
+                
+                bootGroup1.add(boot1);
+                
+                const boot2 = new THREE.Mesh(geometry.clone(), material.clone());
+                boot2.name = 'boot';
+                boot2.castShadow = true;
+                boot2.receiveShadow = true;
+                boot2.userData.baseRotation = new THREE.Vector3(0, 0, 0);
+                boot2.rotation.copy(boot1.rotation);
+                
+                bootGroup2.add(boot2);
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function loadCSV(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                parseData(e.target.result);
+            };
+            reader.readAsText(file);
+        }
+
+        // 解析数据
+        function parseData(text) {
+            const lines = text.trim().split('\n');
+            const headers = lines[0].split(',').map(h => h.trim());
+            
+            imuData = [];
+            for (let i = 1; i < lines.length; i++) {
+                const values = lines[i].split(',').map(v => v.trim());
+                const row = {};
+                
+                headers.forEach((header, index) => {
+                    row[header] = isNaN(values[index]) ? values[index] : parseFloat(values[index]);
+                });
+                
+                imuData.push(row);
+            }
+            
+            // 保存初始角度
+            if (imuData.length > 0) {
+                initialAngles = {
+                    x: imuData[0]['angleX(°)'] || 0,
+                    y: imuData[0]['angleY(°)'] || 0,
+                    z: imuData[0]['angleZ(°)'] || 0
+                };
+            }
+            
+            // 显示数据信息
+            displayDataInfo();
+            
+            // 初始化图表
+            initChart();
+            
+            // 启用控制按钮和滑块
+            document.getElementById('playBtn').disabled = false;
+            document.getElementById('pauseBtn').disabled = false;
+            document.getElementById('resetBtn').disabled = false;
+            document.getElementById('timeSlider').disabled = false;
+            
+            // 设置滑块范围
+            document.getElementById('timeSlider').max = imuData.length - 1;
+            
+            // 重置到第一帧
+            currentIndex = 0;
+            updateVisualization();
+        }
+
+        // 显示数据信息
+        function displayDataInfo() {
+            document.getElementById('dataInfo').style.display = 'block';
+            document.getElementById('angleInfo').style.display = 'block';
+            document.getElementById('chartSection').style.display = 'block';
+            
+            document.getElementById('dataPoints').textContent = imuData.length;
+            
+            if (imuData.length > 1) {
+                const timeDiff = imuData[1].timestamp - imuData[0].timestamp;
+                const sampleRate = 1000 / timeDiff;
+                document.getElementById('sampleRate').textContent = sampleRate.toFixed(1) + ' Hz';
+                
+                const totalTime = (imuData[imuData.length - 1].timestamp - imuData[0].timestamp) / 1000;
+                document.getElementById('duration').textContent = totalTime.toFixed(2) + 's';
+                document.getElementById('maxTime').textContent = totalTime.toFixed(1) + 's';
+            }
+        }
+
+        // 初始化图表
+        function initChart() {
+            const ctx = document.getElementById('angleChart').getContext('2d');
+            
+            if (angleChart) {
+                angleChart.destroy();
+            }
+            
+            const time = imuData.map((d, i) => i);
+            const angleX = imuData.map(d => d['angleX(°)'] - initialAngles.x);
+            const angleY = imuData.map(d => d['angleY(°)'] - initialAngles.y);
+            const angleZ = imuData.map(d => d['angleZ(°)'] - initialAngles.z);
+            
+            angleChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: time,
+                    datasets: [
+                        {
+                            label: 'Roll (X)',
+                            data: angleX,
+                            borderColor: 'rgb(255, 99, 132)',
+                            borderWidth: 2,
+                            pointRadius: 0,
+                            tension: 0.1
+                        },
+                        {
+                            label: 'Pitch (Y)',
+                            data: angleY,
+                            borderColor: 'rgb(54, 162, 235)',
+                            borderWidth: 2,
+                            pointRadius: 0,
+                            tension: 0.1
+                        },
+                        {
+                            label: 'Yaw (Z)',
+                            data: angleZ,
+                            borderColor: 'rgb(75, 192, 192)',
+                            borderWidth: 2,
+                            pointRadius: 0,
+                            tension: 0.1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        },
+                        title: {
+                            display: true,
+                            text: '相对欧拉角变化'
+                        }
+                    },
+                    scales: {
+                        x: {
+                            display: false
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: '角度 (°)'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // 更新可视化
+        function updateVisualization() {
+            if (currentIndex >= imuData.length) {
+                currentIndex = 0;
+                isPlaying = false;
+                document.getElementById('playBtn').textContent = '▶ 播放';
+            }
+            
+            const data = imuData[currentIndex];
+            
+            // 获取欧拉角（注意坐标系转换）
+            const roll = (data['angleX(°)'] || 0) * Math.PI / 180;
+            const pitch = (data['angleY(°)'] || 0) * Math.PI / 180;
+            const yaw = (data['angleZ(°)'] || 0) * Math.PI / 180;
+            
+            // 更新动画场景中的靴子组旋转
+            bootGroup2.rotation.set(roll, pitch, yaw);
+            
+            // 更新显示信息
+            const currentTime = (data.timestamp - imuData[0].timestamp) / 1000;
+            document.getElementById('currentTime').textContent = currentTime.toFixed(3);
+            document.getElementById('currentFrame').textContent = currentIndex;
+            
+            // 更新滑块位置
+            document.getElementById('timeSlider').value = currentIndex;
+            
+            // 绝对欧拉角
+            document.getElementById('absRoll').textContent = (data['angleX(°)'] || 0).toFixed(2) + '°';
+            document.getElementById('absPitch').textContent = (data['angleY(°)'] || 0).toFixed(2) + '°';
+            document.getElementById('absYaw').textContent = (data['angleZ(°)'] || 0).toFixed(2) + '°';
+            
+            // 相对欧拉角
+            document.getElementById('relRoll').textContent = ((data['angleX(°)'] || 0) - initialAngles.x).toFixed(2) + '°';
+            document.getElementById('relPitch').textContent = ((data['angleY(°)'] || 0) - initialAngles.y).toFixed(2) + '°';
+            document.getElementById('relYaw').textContent = ((data['angleZ(°)'] || 0) - initialAngles.z).toFixed(2) + '°';
+            
+            // 更新图表当前位置
+            if (angleChart) {
+                angleChart.options.plugins.annotation = {
+                    annotations: {
+                        line1: {
+                            type: 'line',
+                            xMin: currentIndex,
+                            xMax: currentIndex,
+                            borderColor: 'rgba(0, 0, 0, 0.5)',
+                            borderWidth: 2
+                        }
+                    }
+                };
+                angleChart.update('none');
+            }
+        }
+
+        // 控制按钮
+        document.getElementById('playBtn').addEventListener('click', play);
+        document.getElementById('pauseBtn').addEventListener('click', pause);
+        document.getElementById('resetBtn').addEventListener('click', reset);
+        document.getElementById('timeSlider').addEventListener('input', onSliderChange);
+
+        function play() {
+            isPlaying = true;
+            document.getElementById('playBtn').textContent = '⏸ 暂停';
+        }
+
+        function pause() {
+            isPlaying = false;
+            document.getElementById('playBtn').textContent = '▶ 播放';
+        }
+
+        function reset() {
+            currentIndex = 0;
+            isPlaying = false;
+            document.getElementById('playBtn').textContent = '▶ 播放';
+            updateVisualization();
+        }
+
+        function onSliderChange() {
+            currentIndex = parseInt(document.getElementById('timeSlider').value);
+            updateVisualization();
+        }
+
+        // 动画循环
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            if (isPlaying && imuData.length > 0) {
+                currentIndex++;
+                updateVisualization();
+            }
+            
+            staticRenderer.render(staticScene, staticCamera);
+            animRenderer.render(animScene, animCamera);
+        }
+
+        // 初始化
+        initScenes();
+    </script>
+</body>
+</html>

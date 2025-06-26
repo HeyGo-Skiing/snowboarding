@@ -1,0 +1,1774 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>滑雪视频-IMU-靴子综合可视化系统</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/STLLoader.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0f0f0f;
+            color: #f0f0f0;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1800px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+        
+        .header h1 {
+            font-size: 2.2em;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+        
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+        
+        /* 第一行：视频和3D动画并排 */
+        .top-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .video-section, .boot-3d-section {
+            background: #1a1a1a;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+        }
+        
+        .section-title {
+            font-size: 1.2em;
+            margin-bottom: 15px;
+            color: #667eea;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .video-wrapper {
+            position: relative;
+            background: #000;
+            border-radius: 8px;
+            overflow: hidden;
+            width: 100%;
+            aspect-ratio: 16/9;
+        }
+        
+        video {
+            width: 100%;
+            height: 100%;
+            display: block;
+            object-fit: contain;
+        }
+        
+        .video-placeholder {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #2a2a2a;
+            border-radius: 8px;
+            flex-direction: column;
+            gap: 20px;
+        }
+        
+        .boot-3d-viewer {
+            position: relative;
+            background: #000;
+            border-radius: 8px;
+            overflow: hidden;
+            width: 100%;
+            aspect-ratio: 16/9;
+        }
+        
+        .viewer-title {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 5px 15px;
+            border-radius: 5px;
+            font-weight: 600;
+            z-index: 100;
+            color: #333;
+        }
+        
+        .view-controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            z-index: 100;
+        }
+        
+        .view-controls button {
+            padding: 5px 10px;
+            margin: 2px;
+            font-size: 12px;
+            background: #3498db;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        .view-controls button:hover {
+            background: #2980b9;
+        }
+        
+        .display-controls {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            z-index: 100;
+        }
+        
+        /* 第二行：数据图表 */
+        .chart-section {
+            background: #1a1a1a;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+            margin-bottom: 20px;
+        }
+        
+        .chart-container {
+            position: relative;
+            height: 400px;
+        }
+        
+        /* 第三行：控制面板和静态展示 */
+        .bottom-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        
+        .control-panel, .static-display {
+            background: #1a1a1a;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+        }
+        
+        .static-viewer {
+            position: relative;
+            background: #f5f5f5;
+            border-radius: 8px;
+            overflow: hidden;
+            width: 100%;
+            height: 400px;
+            margin-top: 15px;
+        }
+        
+        /* 时间同步控制 */
+        .sync-controls {
+            margin-top: 15px;
+            padding: 20px;
+            background: #2a2a2a;
+            border-radius: 8px;
+        }
+        
+        .time-info {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 15px;
+            padding: 15px;
+            background: #2a2a2a;
+            border-radius: 8px;
+        }
+        
+        .time-info-item {
+            text-align: center;
+        }
+        
+        .time-info-label {
+            font-size: 0.9em;
+            color: #aaa;
+            margin-bottom: 5px;
+        }
+        
+        .time-info-value {
+            font-size: 1.2em;
+            color: #667eea;
+            font-weight: 600;
+        }
+        
+        /* 控制元素样式 */
+        .upload-btn {
+            padding: 12px 24px;
+            background: #667eea;
+            border: none;
+            border-radius: 6px;
+            color: white;
+            font-size: 1em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .upload-btn:hover {
+            background: #764ba2;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+        }
+        
+        .apply-btn {
+            padding: 10px 20px;
+            background: #667eea;
+            border: none;
+            border-radius: 6px;
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 10px;
+            width: 100%;
+        }
+        
+        .apply-btn:hover {
+            background: #764ba2;
+            transform: translateY(-2px);
+        }
+        
+        input[type="file"] {
+            display: none;
+        }
+        
+        input[type="range"] {
+            width: 100%;
+            height: 8px;
+            background: #3a3a3a;
+            border-radius: 4px;
+            outline: none;
+            -webkit-appearance: none;
+            cursor: pointer;
+        }
+        
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 20px;
+            height: 20px;
+            background: #667eea;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+        
+        .section {
+            margin-bottom: 25px;
+            padding: 20px;
+            background: #2a2a2a;
+            border-radius: 8px;
+        }
+        
+        .section h3 {
+            margin-top: 0;
+            color: #f0f0f0;
+            font-size: 18px;
+        }
+        
+        .checkbox-group {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 8px 12px;
+            background: #3a3a3a;
+            border-radius: 6px;
+            margin: 5px;
+        }
+        
+        .checkbox-group input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+        
+        .checkbox-group label {
+            cursor: pointer;
+            font-size: 0.9em;
+        }
+        
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+        
+        .info-item {
+            padding: 8px;
+            background: #3a3a3a;
+            border-radius: 4px;
+        }
+        
+        .info-label {
+            color: #aaa;
+            font-size: 12px;
+        }
+        
+        .info-value {
+            font-weight: 600;
+            color: #667eea;
+        }
+        
+        .axes-legend {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            color: #333;
+        }
+        
+        .axes-legend div {
+            margin: 2px 0;
+        }
+        
+        .sync-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #4ade80;
+            margin-left: 10px;
+            animation: pulse 2s infinite;
+        }
+        
+        .sync-indicator.out-of-sync {
+            background: #f87171;
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        
+        .color-picker-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        .color-picker-group input[type="color"] {
+            width: 50px;
+            height: 35px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        .color-picker-group label {
+            flex: 1;
+        }
+        
+        /* 旋转模式切换 */
+        .rotation-mode-toggle {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .rotation-mode-toggle button {
+            flex: 1;
+            padding: 8px 16px;
+            border: 2px solid #667eea;
+            background: transparent;
+            color: #667eea;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .rotation-mode-toggle button.active {
+            background: #667eea;
+            color: white;
+        }
+        
+        .rotation-mode-toggle button:hover:not(.active) {
+            background: rgba(102, 126, 234, 0.1);
+        }
+        
+        /* 旋转矩阵输入 */
+        .matrix-input {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin-top: 15px;
+        }
+        
+        .matrix-input input {
+            padding: 8px;
+            background: #3a3a3a;
+            border: 1px solid #4a4a4a;
+            border-radius: 4px;
+            color: #f0f0f0;
+            text-align: center;
+            font-size: 14px;
+        }
+        
+        .matrix-label {
+            font-size: 14px;
+            color: #aaa;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+        
+        /* 欧拉角输入 */
+        .euler-input {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        .euler-input .input-group {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .euler-input .input-group label {
+            font-size: 12px;
+            color: #aaa;
+            margin-bottom: 3px;
+        }
+        
+        .euler-input .input-group input {
+            padding: 8px;
+            background: #3a3a3a;
+            border: 1px solid #4a4a4a;
+            border-radius: 4px;
+            color: #f0f0f0;
+        }
+        
+        /* 数据类型切换按钮 */
+        #toggleDataType {
+            transition: all 0.3s ease;
+        }
+        
+        #toggleDataType:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+        }
+        
+        /* FPS显示 */
+        .fps-display {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            color: #4ade80;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+            z-index: 100;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎿 滑雪视频-IMU-靴子综合可视化系统</h1>
+            <p>同步分析滑雪视频、IMU传感器数据和靴子3D姿态</p>
+        </div>
+        
+        <!-- 第一行：视频和3D动画并排 -->
+        <div class="top-row">
+            <!-- 视频播放器 -->
+            <div class="video-section">
+                <h2 class="section-title">
+                    📹 视频播放器
+                    <span class="sync-indicator" id="syncIndicator"></span>
+                </h2>
+                <div class="video-wrapper">
+                    <div class="video-placeholder" id="videoPlaceholder">
+                        <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"></rect>
+                            <line x1="7" y1="2" x2="7" y2="22"></line>
+                            <line x1="17" y1="2" x2="17" y2="22"></line>
+                            <line x1="2" y1="12" x2="22" y2="12"></line>
+                        </svg>
+                        <input type="file" id="videoInput" accept="video/*">
+                        <button class="upload-btn" onclick="document.getElementById('videoInput').click()">
+                            选择视频文件
+                        </button>
+                        <p style="color: #aaa; font-size: 0.9em;">支持 MP4, MOV, AVI 等格式</p>
+                    </div>
+                    <video id="skiVideo" controls style="display: none; width: 100%; height: 100%;"></video>
+                </div>
+                <div class="time-info">
+                    <div class="time-info-item">
+                        <div class="time-info-label">当前时间</div>
+                        <div class="time-info-value" id="currentTime">00:00.00</div>
+                    </div>
+                    <div class="time-info-item">
+                        <div class="time-info-label">视频开始时间</div>
+                        <div class="time-info-value" id="videoStartTime">--:--:--.--</div>
+                    </div>
+                    <div class="time-info-item">
+                        <div class="time-info-label">对应IMU时间</div>
+                        <div class="time-info-value" id="currentIMUTime">--:--:--.--</div>
+                    </div>
+                    <div class="time-info-item">
+                        <div class="time-info-label">视频时长</div>
+                        <div class="time-info-value" id="videoDuration">--:--</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 靴子3D动画 -->
+            <div class="boot-3d-section">
+                <h2 class="section-title">🥾 靴子姿态动画</h2>
+                <div class="boot-3d-viewer" id="animationViewer">
+                    <div class="viewer-title">实时姿态</div>
+                    <div class="view-controls">
+                        <button onclick="setView('top', 'anim')">俯视</button>
+                        <button onclick="setView('front', 'anim')">前视</button>
+                        <button onclick="setView('side', 'anim')">侧视</button>
+                        <button onclick="setView('iso', 'anim')">3D</button>
+                    </div>
+                    <div class="display-controls">
+                        <div class="checkbox-group">
+                            <input type="checkbox" id="showGrid" onchange="toggleDisplayOptions()">
+                            <label for="showGrid">显示网格</label>
+                        </div>
+                        <div class="checkbox-group">
+                            <input type="checkbox" id="showAxes" onchange="toggleDisplayOptions()">
+                            <label for="showAxes">显示坐标轴</label>
+                        </div>
+                        <div class="checkbox-group">
+                            <input type="checkbox" id="showIMU" onchange="toggleDisplayOptions()">
+                            <label for="showIMU">显示IMU</label>
+                        </div>
+                    </div>
+                    <div class="fps-display" id="fpsDisplay">30 FPS</div>
+                </div>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <div class="info-label">Roll (X轴)</div>
+                        <div class="info-value" id="currentRoll">0.00°</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Pitch (Y轴)</div>
+                        <div class="info-value" id="currentPitch">0.00°</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Yaw (Z轴)</div>
+                        <div class="info-value" id="currentYaw">0.00°</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">当前帧</div>
+                        <div class="info-value" id="currentFrame">0</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 第二行：数据图表 -->
+        <div class="chart-section">
+            <h2 class="section-title">
+                📊 IMU数据可视化
+                <span class="data-type-indicator" id="dataTypeIndicator" style="display: inline-block; padding: 4px 12px; background: #e74c3c; border-radius: 20px; font-size: 0.9em; margin-left: 10px;">原始IMU数据</span>
+            </h2>
+            <!-- 数据类型切换按钮 -->
+            <div style="margin-bottom: 15px;">
+                <button id="toggleDataType" onclick="toggleDataType()" style="padding: 8px 20px; background: #667eea; border: none; border-radius: 6px; color: white; cursor: pointer; font-size: 0.9em;">
+                    切换到转换后数据
+                </button>
+            </div>
+            <div class="chart-container">
+                <canvas id="imuChart"></canvas>
+            </div>
+            <!-- 数据选择复选框 -->
+            <div style="margin-top: 15px; display: flex; flex-wrap: wrap; gap: 5px;">
+                <div style="width: 100%; font-size: 0.9em; color: #aaa; margin-bottom: 5px;">不含重力加速度:</div>
+                <div class="checkbox-group">
+                    <input type="checkbox" id="showAccX" checked>
+                    <label for="showAccX">aX</label>
+                </div>
+                <div class="checkbox-group">
+                    <input type="checkbox" id="showAccY" checked>
+                    <label for="showAccY">aY</label>
+                </div>
+                <div class="checkbox-group">
+                    <input type="checkbox" id="showAccZ" checked>
+                    <label for="showAccZ">aZ</label>
+                </div>
+                <div style="width: 100%; font-size: 0.9em; color: #aaa; margin: 10px 0 5px 0;">陀螺仪:</div>
+                <div class="checkbox-group">
+                    <input type="checkbox" id="showGyroX">
+                    <label for="showGyroX">Gx</label>
+                </div>
+                <div class="checkbox-group">
+                    <input type="checkbox" id="showGyroY">
+                    <label for="showGyroY">Gy</label>
+                </div>
+                <div class="checkbox-group">
+                    <input type="checkbox" id="showGyroZ">
+                    <label for="showGyroZ">Gz</label>
+                </div>
+                <div style="width: 100%; font-size: 0.9em; color: #aaa; margin: 10px 0 5px 0;">欧拉角:</div>
+                <div class="checkbox-group">
+                    <input type="checkbox" id="showAngleX" checked>
+                    <label for="showAngleX">角度X</label>
+                </div>
+                <div class="checkbox-group">
+                    <input type="checkbox" id="showAngleY" checked>
+                    <label for="showAngleY">角度Y</label>
+                </div>
+                <div class="checkbox-group">
+                    <input type="checkbox" id="showAngleZ" checked>
+                    <label for="showAngleZ">角度Z</label>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 第三行：控制面板和静态展示 -->
+        <div class="bottom-row">
+            <!-- 控制面板 -->
+            <div class="control-panel">
+                <h2 class="section-title">⚙️ 控制面板</h2>
+                
+                <!-- 文件上传 -->
+                <div class="section">
+                    <h3>📁 数据导入</h3>
+                    <div style="display: grid; gap: 10px;">
+                        <div>
+                            <label style="display: block; margin-bottom: 5px; color: #aaa;">靴子模型 (STL):</label>
+                            <input type="file" id="stlInput" accept=".stl">
+                            <button class="upload-btn" onclick="document.getElementById('stlInput').click()" style="width: 100%;">
+                                选择STL文件
+                            </button>
+                        </div>
+                        <div>
+                            <label style="display: block; margin-bottom: 5px; color: #aaa;">IMU数据 (CSV):</label>
+                            <input type="file" id="csvInput" accept=".csv,.txt">
+                            <button class="upload-btn" onclick="document.getElementById('csvInput').click()" style="width: 100%;">
+                                选择CSV文件
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 时间同步 -->
+                <div class="section">
+                    <h3>🎯 时间同步</h3>
+                    <div style="display: flex; gap: 10px; align-items: end;">
+                        <div style="flex: 1;">
+                            <label style="display: block; margin-bottom: 5px; color: #aaa;">视频开始时间:</label>
+                            <input type="text" id="videoTimeInput" placeholder="HH:MM:SS.mm" 
+                                   style="width: 100%; padding: 8px 12px; background: #3a3a3a; 
+                                          border: 1px solid #4a4a4a; border-radius: 6px; 
+                                          color: #f0f0f0; font-size: 1em;">
+                        </div>
+                        <button class="apply-btn" onclick="setVideoStartTime()" style="width: auto; margin-top: 0;">
+                            设置
+                        </button>
+                    </div>
+                    <p style="margin-top: 10px; font-size: 0.85em; color: #aaa; line-height: 1.5;">
+                        💡 输入格式：HH:MM:SS.mm（精确到厘秒）
+                    </p>
+                </div>
+                
+                <!-- 靴子颜色调整 -->
+                <div class="section">
+                    <h3>🎨 靴子颜色调整</h3>
+                    <div class="color-picker-group">
+                        <label for="bootColor">靴子颜色:</label>
+                        <input type="color" id="bootColor" value="#C0C0C0" onchange="updateBootColor()">
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 旋转变换设置 -->
+            <div class="static-display">
+                <h2 class="section-title">🔄 雪板到IMU旋转变换</h2>
+                
+                <!-- 旋转输入模式切换 -->
+                <div class="section">
+                    <h3>🔧 旋转输入模式</h3>
+                    <div class="rotation-mode-toggle">
+                        <button id="eulerModeBtn" class="active" onclick="setRotationMode('euler')">欧拉角</button>
+                        <button id="matrixModeBtn" onclick="setRotationMode('matrix')">旋转矩阵</button>
+                    </div>
+                    
+                    <!-- 欧拉角输入 -->
+                    <div id="eulerInputSection">
+                        <div class="euler-input">
+                            <div class="input-group">
+                                <label>旋转 X (°)</label>
+                                <input type="number" id="rotX" value="0" step="0.1" onchange="onEulerChange()">
+                            </div>
+                            <div class="input-group">
+                                <label>旋转 Y (°)</label>
+                                <input type="number" id="rotY" value="0" step="0.1" onchange="onEulerChange()">
+                            </div>
+                            <div class="input-group">
+                                <label>旋转 Z (°)</label>
+                                <input type="number" id="rotZ" value="0" step="0.1" onchange="onEulerChange()">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 旋转矩阵输入 -->
+                    <div id="matrixInputSection" style="display: none;">
+                        <div class="matrix-label">旋转矩阵 (3x3)</div>
+                        <div class="matrix-input">
+                            <input type="number" id="m11" value="1" step="0.001" onchange="onMatrixChange()">
+                            <input type="number" id="m12" value="0" step="0.001" onchange="onMatrixChange()">
+                            <input type="number" id="m13" value="0" step="0.001" onchange="onMatrixChange()">
+                            <input type="number" id="m21" value="0" step="0.001" onchange="onMatrixChange()">
+                            <input type="number" id="m22" value="1" step="0.001" onchange="onMatrixChange()">
+                            <input type="number" id="m23" value="0" step="0.001" onchange="onMatrixChange()">
+                            <input type="number" id="m31" value="0" step="0.001" onchange="onMatrixChange()">
+                            <input type="number" id="m32" value="0" step="0.001" onchange="onMatrixChange()">
+                            <input type="number" id="m33" value="1" step="0.001" onchange="onMatrixChange()">
+                        </div>
+                    </div>
+                    
+                    <button onclick="applyRotationTransform()" class="apply-btn">应用旋转变换</button>
+                    
+                    <!-- 当前变换矩阵显示 -->
+                    <div style="margin-top: 15px; padding: 10px; background: #3a3a3a; border-radius: 6px;">
+                        <div style="font-size: 0.9em; color: #aaa; margin-bottom: 5px;">当前变换矩阵:</div>
+                        <div id="currentTransformDisplay" style="font-family: monospace; font-size: 0.85em; color: #667eea; white-space: pre;">
+[1.000  0.000  0.000]
+[0.000  1.000  0.000]
+[0.000  0.000  1.000]</div>
+                    </div>
+                </div>
+                
+                <!-- 静态3D视图 -->
+                <div class="static-viewer" id="staticViewer">
+                    <div class="viewer-title">旋转变换预览</div>
+                    <div class="view-controls">
+                        <button onclick="setView('top', 'static')">俯视</button>
+                        <button onclick="setView('front', 'static')">前视</button>
+                        <button onclick="setView('side', 'static')">侧视</button>
+                        <button onclick="setView('iso', 'static')">3D</button>
+                    </div>
+                    <div class="axes-legend">
+                        <div style="color: #ff0000;">● X轴 (前/红)</div>
+                        <div style="color: #00ff00;">● Y轴 (右/绿)</div>
+                        <div style="color: #0000ff;">● Z轴 (上/蓝)</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 全局变量
+        let video = document.getElementById('skiVideo');
+        let chart = null;
+        
+        // Three.js 场景相关
+        let staticScene, staticCamera, staticRenderer;
+        let animScene, animCamera, animRenderer;
+        let bootModel = null;
+        let imuBox1, imuBox2;
+        let bootGroup1, bootGroup2;
+        let bootMaterial = null;
+        
+        // 添加场景容器组（用于整体旋转）
+        let staticSceneGroup, animSceneGroup;
+        
+        // 动画场景中的显示元素
+        let animGrid, animAxes;
+        
+        // 数据相关
+        let imuData = [];
+        let originalIMUData = null;
+        let transformedIMUData = null; // 存储转换后的数据
+        let videoStartTimeStr = null;
+        let currentOffset = 0;
+        let isPlaying = false;
+        let currentIndex = 0;
+        let showTransformedData = false; // 是否显示转换后的数据
+        
+        // 旋转变换相关
+        let rotationMode = 'euler'; // 'euler' 或 'matrix'
+        let rotationTransform = new THREE.Matrix4();
+        rotationTransform.identity(); // 初始化为单位矩阵
+        
+        // 30Hz动画相关
+        let lastAnimationTime = 0;
+        const targetFPS = 30;
+        const frameInterval = 1000 / targetFPS; // 33.33ms
+        let frameCount = 0;
+        let lastFPSTime = 0;
+        
+        // 鼠标控制 - 改为简单的旋转控制
+        let mouseDown = false;
+        let mouseX = 0;
+        let mouseY = 0;
+        
+        // 相机距离控制
+        let cameraDistances = {
+            static: 300,
+            anim: 300
+        };
+        
+        // 初始化Three.js场景
+        function initScenes() {
+            // 静态场景
+            const staticContainer = document.getElementById('staticViewer');
+            staticScene = new THREE.Scene();
+            staticScene.background = new THREE.Color(0xf5f5f5);
+            
+            // 创建场景容器组
+            staticSceneGroup = new THREE.Group();
+            staticScene.add(staticSceneGroup);
+            
+            staticCamera = new THREE.PerspectiveCamera(
+                50,
+                staticContainer.offsetWidth / staticContainer.offsetHeight,
+                0.1,
+                2000
+            );
+            staticCamera.position.set(0, 0, cameraDistances.static);
+            
+            staticRenderer = new THREE.WebGLRenderer({ antialias: true });
+            staticRenderer.setSize(staticContainer.offsetWidth, staticContainer.offsetHeight);
+            staticRenderer.shadowMap.enabled = true;
+            staticContainer.appendChild(staticRenderer.domElement);
+            
+            // 动画场景
+            const animContainer = document.getElementById('animationViewer');
+            animScene = new THREE.Scene();
+            animScene.background = new THREE.Color(0xf0f0f0);
+            
+            // 创建场景容器组
+            animSceneGroup = new THREE.Group();
+            animScene.add(animSceneGroup);
+            
+            animCamera = new THREE.PerspectiveCamera(
+                50,
+                animContainer.offsetWidth / animContainer.offsetHeight,
+                0.1,
+                2000
+            );
+            animCamera.position.set(0, 0, cameraDistances.anim);
+            
+            animRenderer = new THREE.WebGLRenderer({ antialias: true });
+            animRenderer.setSize(animContainer.offsetWidth, animContainer.offsetHeight);
+            animRenderer.shadowMap.enabled = true;
+            animContainer.appendChild(animRenderer.domElement);
+            
+            // 添加光照
+            [staticScene, animScene].forEach(scene => {
+                const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+                scene.add(ambientLight);
+                
+                const directionalLight1 = new THREE.DirectionalLight(0xffffff, 0.4);
+                directionalLight1.position.set(10, 20, 10);
+                directionalLight1.castShadow = true;
+                scene.add(directionalLight1);
+                
+                const directionalLight2 = new THREE.DirectionalLight(0xffffff, 0.2);
+                directionalLight2.position.set(-10, 20, -10);
+                scene.add(directionalLight2);
+            });
+            
+            // 添加网格和坐标轴到场景组
+            const gridHelper1 = new THREE.GridHelper(400, 40, 0x888888, 0xcccccc);
+            gridHelper1.rotateX(Math.PI / 2);
+            staticSceneGroup.add(gridHelper1);
+            
+            animGrid = new THREE.GridHelper(400, 40, 0x888888, 0xcccccc);
+            animGrid.rotateX(Math.PI / 2);
+            animGrid.visible = false;
+            animSceneGroup.add(animGrid);
+            
+            const axes1 = new THREE.AxesHelper(150);
+            staticSceneGroup.add(axes1);
+            
+            animAxes = new THREE.AxesHelper(150);
+            animAxes.visible = false;
+            animSceneGroup.add(animAxes);
+            
+            // 创建靴子组
+            bootGroup1 = new THREE.Group();
+            bootGroup2 = new THREE.Group();
+            staticSceneGroup.add(bootGroup1);
+            animSceneGroup.add(bootGroup2);
+            
+            // 创建IMU
+            createIMUs();
+            
+            // 鼠标事件
+            setupMouseControls(staticRenderer.domElement, 'static');
+            setupMouseControls(animRenderer.domElement, 'anim');
+            
+            // 窗口大小调整
+            window.addEventListener('resize', onWindowResize);
+            
+            animate();
+        }
+        
+        // 创建IMU模型
+        function createIMUs() {
+            const geometry = new THREE.BoxGeometry(6, 6, 2);
+            const material = new THREE.MeshPhongMaterial({
+                color: 0x2ecc71,
+                transparent: true,
+                opacity: 0.8
+            });
+            
+            // 静态场景的IMU（用于显示旋转变换）
+            imuBox1 = new THREE.Mesh(geometry, material);
+            imuBox1.castShadow = true;
+            imuBox1.receiveShadow = true;
+            imuBox1.position.set(0, 0, 30); // 固定在中心上方
+            
+            const edges1 = new THREE.EdgesGeometry(geometry);
+            const edgeMaterial1 = new THREE.LineBasicMaterial({ color: 0x000000 });
+            const wireframe1 = new THREE.LineSegments(edges1, edgeMaterial1);
+            imuBox1.add(wireframe1);
+            
+            const localAxes1 = new THREE.AxesHelper(40);
+            imuBox1.add(localAxes1);
+            
+            staticSceneGroup.add(imuBox1);
+            
+            // 动画场景的IMU
+            imuBox2 = new THREE.Mesh(geometry.clone(), material.clone());
+            imuBox2.castShadow = true;
+            imuBox2.receiveShadow = true;
+            imuBox2.visible = false;
+            imuBox2.position.set(0, 0, 30);
+            
+            const edges2 = new THREE.EdgesGeometry(geometry);
+            const edgeMaterial2 = new THREE.LineBasicMaterial({ color: 0x000000 });
+            const wireframe2 = new THREE.LineSegments(edges2, edgeMaterial2);
+            imuBox2.add(wireframe2);
+            
+            const localAxes2 = new THREE.AxesHelper(40);
+            imuBox2.add(localAxes2);
+            
+            animSceneGroup.add(imuBox2);
+        }
+        
+        // 切换显示选项
+        function toggleDisplayOptions() {
+            const showGrid = document.getElementById('showGrid').checked;
+            const showAxes = document.getElementById('showAxes').checked;
+            const showIMU = document.getElementById('showIMU').checked;
+            
+            if (animGrid) animGrid.visible = showGrid;
+            if (animAxes) animAxes.visible = showAxes;
+            if (imuBox2) imuBox2.visible = showIMU;
+        }
+        
+        // 更新靴子颜色
+        function updateBootColor() {
+            const color = document.getElementById('bootColor').value;
+            
+            [bootGroup1, bootGroup2].forEach(group => {
+                const boot = group.children.find(child => child.name === 'boot');
+                if (boot && boot.material) {
+                    boot.material.color.set(color);
+                }
+            });
+        }
+        
+        // 设置旋转模式
+        function setRotationMode(mode) {
+            rotationMode = mode;
+            
+            if (mode === 'euler') {
+                document.getElementById('eulerModeBtn').classList.add('active');
+                document.getElementById('matrixModeBtn').classList.remove('active');
+                document.getElementById('eulerInputSection').style.display = 'block';
+                document.getElementById('matrixInputSection').style.display = 'none';
+            } else {
+                document.getElementById('eulerModeBtn').classList.remove('active');
+                document.getElementById('matrixModeBtn').classList.add('active');
+                document.getElementById('eulerInputSection').style.display = 'none';
+                document.getElementById('matrixInputSection').style.display = 'block';
+            }
+        }
+        
+        // 欧拉角改变时更新矩阵
+        function onEulerChange() {
+            if (rotationMode === 'euler') {
+                const x = parseFloat(document.getElementById('rotX').value) * Math.PI / 180;
+                const y = parseFloat(document.getElementById('rotY').value) * Math.PI / 180;
+                const z = parseFloat(document.getElementById('rotZ').value) * Math.PI / 180;
+                
+                // 创建旋转矩阵
+                const euler = new THREE.Euler(x, y, z, 'XYZ');
+                const tempMatrix = new THREE.Matrix4();
+                tempMatrix.makeRotationFromEuler(euler);
+                
+                // 更新矩阵输入框
+                const elements = tempMatrix.elements;
+                document.getElementById('m11').value = elements[0].toFixed(3);
+                document.getElementById('m21').value = elements[1].toFixed(3);
+                document.getElementById('m31').value = elements[2].toFixed(3);
+                document.getElementById('m12').value = elements[4].toFixed(3);
+                document.getElementById('m22').value = elements[5].toFixed(3);
+                document.getElementById('m32').value = elements[6].toFixed(3);
+                document.getElementById('m13').value = elements[8].toFixed(3);
+                document.getElementById('m23').value = elements[9].toFixed(3);
+                document.getElementById('m33').value = elements[10].toFixed(3);
+            }
+        }
+        
+        // 矩阵改变时更新欧拉角
+        function onMatrixChange() {
+            if (rotationMode === 'matrix') {
+                // 从输入框读取矩阵值
+                const m11 = parseFloat(document.getElementById('m11').value);
+                const m12 = parseFloat(document.getElementById('m12').value);
+                const m13 = parseFloat(document.getElementById('m13').value);
+                const m21 = parseFloat(document.getElementById('m21').value);
+                const m22 = parseFloat(document.getElementById('m22').value);
+                const m23 = parseFloat(document.getElementById('m23').value);
+                const m31 = parseFloat(document.getElementById('m31').value);
+                const m32 = parseFloat(document.getElementById('m32').value);
+                const m33 = parseFloat(document.getElementById('m33').value);
+                
+                // 创建旋转矩阵
+                const tempMatrix = new THREE.Matrix4();
+                tempMatrix.set(
+                    m11, m12, m13, 0,
+                    m21, m22, m23, 0,
+                    m31, m32, m33, 0,
+                    0, 0, 0, 1
+                );
+                
+                // 从矩阵提取欧拉角
+                const euler = new THREE.Euler();
+                euler.setFromRotationMatrix(tempMatrix, 'XYZ');
+                
+                // 更新欧拉角输入框
+                document.getElementById('rotX').value = (euler.x * 180 / Math.PI).toFixed(1);
+                document.getElementById('rotY').value = (euler.y * 180 / Math.PI).toFixed(1);
+                document.getElementById('rotZ').value = (euler.z * 180 / Math.PI).toFixed(1);
+            }
+        }
+        
+        // 应用旋转变换
+        function applyRotationTransform() {
+            if (rotationMode === 'euler') {
+                const x = parseFloat(document.getElementById('rotX').value) * Math.PI / 180;
+                const y = parseFloat(document.getElementById('rotY').value) * Math.PI / 180;
+                const z = parseFloat(document.getElementById('rotZ').value) * Math.PI / 180;
+                
+                const euler = new THREE.Euler(x, y, z, 'XYZ');
+                rotationTransform.makeRotationFromEuler(euler);
+            } else {
+                // 从输入框读取矩阵值
+                const m11 = parseFloat(document.getElementById('m11').value);
+                const m12 = parseFloat(document.getElementById('m12').value);
+                const m13 = parseFloat(document.getElementById('m13').value);
+                const m21 = parseFloat(document.getElementById('m21').value);
+                const m22 = parseFloat(document.getElementById('m22').value);
+                const m23 = parseFloat(document.getElementById('m23').value);
+                const m31 = parseFloat(document.getElementById('m31').value);
+                const m32 = parseFloat(document.getElementById('m32').value);
+                const m33 = parseFloat(document.getElementById('m33').value);
+                
+                rotationTransform.set(
+                    m11, m12, m13, 0,
+                    m21, m22, m23, 0,
+                    m31, m32, m33, 0,
+                    0, 0, 0, 1
+                );
+            }
+            
+            // 更新静态场景中IMU的旋转
+            if (imuBox1) {
+                imuBox1.rotation.setFromRotationMatrix(rotationTransform);
+            }
+            
+            // 更新变换矩阵显示
+            const e = rotationTransform.elements;
+            const display = 
+`[${e[0].toFixed(3).padStart(6)}  ${e[4].toFixed(3).padStart(6)}  ${e[8].toFixed(3).padStart(6)}]
+[${e[1].toFixed(3).padStart(6)}  ${e[5].toFixed(3).padStart(6)}  ${e[9].toFixed(3).padStart(6)}]
+[${e[2].toFixed(3).padStart(6)}  ${e[6].toFixed(3).padStart(6)}  ${e[10].toFixed(3).padStart(6)}]`;
+            document.getElementById('currentTransformDisplay').textContent = display;
+            
+            // 重新计算转换后的数据
+            if (imuData && imuData.length > 0) {
+                calculateTransformedData();
+                updateChartData();
+            }
+            
+            console.log('旋转变换已应用');
+        }
+        
+        // 设置鼠标控制（类似第一个文件的方式）
+        function setupMouseControls(element, type) {
+            let localMouseDown = false;
+            let localMouseX = 0;
+            let localMouseY = 0;
+            
+            element.addEventListener('mousedown', (e) => {
+                localMouseDown = true;
+                localMouseX = e.clientX;
+                localMouseY = e.clientY;
+            });
+            
+            element.addEventListener('mousemove', (e) => {
+                if (!localMouseDown) return;
+                
+                const deltaX = e.clientX - localMouseX;
+                const deltaY = e.clientY - localMouseY;
+                
+                // 直接旋转整个场景组
+                if (type === 'static') {
+                    staticSceneGroup.rotation.y += deltaX * 0.01;
+                    staticSceneGroup.rotation.x += deltaY * 0.01;
+                } else {
+                    animSceneGroup.rotation.y += deltaX * 0.01;
+                    animSceneGroup.rotation.x += deltaY * 0.01;
+                }
+                
+                localMouseX = e.clientX;
+                localMouseY = e.clientY;
+            });
+            
+            element.addEventListener('mouseup', () => {
+                localMouseDown = false;
+            });
+            
+            element.addEventListener('mouseleave', () => {
+                localMouseDown = false;
+            });
+            
+            element.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                cameraDistances[type] += e.deltaY * 0.1;
+                cameraDistances[type] = Math.max(100, Math.min(500, cameraDistances[type]));
+                
+                if (type === 'static') {
+                    staticCamera.position.z = cameraDistances[type];
+                } else {
+                    animCamera.position.z = cameraDistances[type];
+                }
+            });
+        }
+        
+        function onWindowResize() {
+            const staticContainer = document.getElementById('staticViewer');
+            const animContainer = document.getElementById('animationViewer');
+            
+            staticCamera.aspect = staticContainer.offsetWidth / staticContainer.offsetHeight;
+            staticCamera.updateProjectionMatrix();
+            staticRenderer.setSize(staticContainer.offsetWidth, staticContainer.offsetHeight);
+            
+            animCamera.aspect = animContainer.offsetWidth / animContainer.offsetHeight;
+            animCamera.updateProjectionMatrix();
+            animRenderer.setSize(animContainer.offsetWidth, animContainer.offsetHeight);
+        }
+        
+        // 设置视角
+        function setView(view, type) {
+            const sceneGroup = type === 'static' ? staticSceneGroup : animSceneGroup;
+            
+            switch(view) {
+                case 'top':
+                    sceneGroup.rotation.set(-Math.PI / 2, 0, 0);
+                    break;
+                case 'front':
+                    sceneGroup.rotation.set(0, 0, 0);
+                    break;
+                case 'side':
+                    sceneGroup.rotation.set(0, Math.PI / 2, 0);
+                    break;
+                case 'iso':
+                    sceneGroup.rotation.set(-Math.PI / 6, Math.PI / 4, 0);
+                    break;
+            }
+        }
+        
+        // 加载STL文件
+        document.getElementById('stlInput').addEventListener('change', loadSTL);
+        
+        function loadSTL(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const loader = new THREE.STLLoader();
+                const geometry = loader.parse(e.target.result);
+                
+                geometry.computeBoundingBox();
+                
+                const bootColor = document.getElementById('bootColor').value;
+                const material = new THREE.MeshPhongMaterial({
+                    color: bootColor,
+                    specular: 0x222222,
+                    shininess: 25
+                });
+                
+                // 清除旧模型
+                [bootGroup1, bootGroup2].forEach(group => {
+                    const oldBoot = group.children.find(child => child.name === 'boot');
+                    if (oldBoot) group.remove(oldBoot);
+                });
+                
+                // 添加新模型
+                const boot1 = new THREE.Mesh(geometry, material);
+                boot1.name = 'boot';
+                boot1.castShadow = true;
+                boot1.receiveShadow = true;
+                bootGroup1.add(boot1);
+                
+                const boot2 = new THREE.Mesh(geometry.clone(), material.clone());
+                boot2.name = 'boot';
+                boot2.castShadow = true;
+                boot2.receiveShadow = true;
+                bootGroup2.add(boot2);
+            };
+            reader.readAsArrayBuffer(file);
+        }
+        
+        // 加载CSV文件
+        document.getElementById('csvInput').addEventListener('change', loadCSV);
+        
+        function loadCSV(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                parseIMUData(e.target.result);
+            };
+            reader.readAsText(file);
+        }
+        
+        // 解析IMU数据
+        function parseIMUData(text) {
+            const lines = text.trim().split('\n');
+            const headers = lines[0].split(',').map(h => h.trim());
+            
+            originalIMUData = [];
+            for (let i = 1; i < lines.length; i++) {
+                const values = lines[i].split(',').map(v => v.trim());
+                const row = {};
+                
+                headers.forEach((header, index) => {
+                    row[header] = values[index];
+                });
+                
+                const timeStr = row['time'];
+                if (!timeStr) continue;
+                
+                originalIMUData.push({
+                    time: timeStr,
+                    timeMs: timeToMilliseconds(timeStr),
+                    timestamp: parseFloat(row['timestamp']) || 0,
+                    accX: parseFloat(row['aX(m/s²)']) || 0,
+                    accY: parseFloat(row['aY(m/s²)']) || 0,
+                    accZ: parseFloat(row['aZ(m/s²)']) || 0,
+                    gyroX: parseFloat(row['Gx(°/s)']) || 0,
+                    gyroY: parseFloat(row['Gy(°/s)']) || 0,
+                    gyroZ: parseFloat(row['Gz(°/s)']) || 0,
+                    angleX: parseFloat(row['angleX(°)']) || 0,
+                    angleY: parseFloat(row['angleY(°)']) || 0,
+                    angleZ: parseFloat(row['angleZ(°)']) || 0
+                });
+            }
+            
+            console.log(`加载了 ${originalIMUData.length} 个数据点`);
+            
+            if (videoStartTimeStr && video.duration) {
+                alignData();
+            } else if (originalIMUData.length > 0) {
+                // 即使没有视频，也可以显示数据
+                imuData = originalIMUData.map((d, index) => ({
+                    ...d,
+                    relativeTime: index * 1000 / 30 // 假设30Hz采样率
+                }));
+                calculateTransformedData();
+                updateChartData();
+            }
+        }
+        
+        // 时间转换函数
+        function timeToMilliseconds(timeStr) {
+            const parts = timeStr.split(':');
+            if (parts.length !== 3) return null;
+            
+            const hours = parseInt(parts[0]);
+            const minutes = parseInt(parts[1]);
+            const secondsParts = parts[2].split('.');
+            const seconds = parseInt(secondsParts[0]);
+            let milliseconds = 0;
+            
+            if (secondsParts[1]) {
+                const fracStr = secondsParts[1];
+                if (fracStr.length === 2) {
+                    milliseconds = parseInt(fracStr) * 10;
+                } else if (fracStr.length === 3) {
+                    milliseconds = parseInt(fracStr);
+                } else {
+                    milliseconds = parseInt(fracStr.padEnd(3, '0').substring(0, 3));
+                }
+            }
+            
+            return hours * 3600000 + minutes * 60000 + seconds * 1000 + milliseconds;
+        }
+        
+        function millisecondsToTime(ms) {
+            const hours = Math.floor(ms / 3600000);
+            const minutes = Math.floor((ms % 3600000) / 60000);
+            const seconds = Math.floor((ms % 60000) / 1000);
+            const centiseconds = Math.floor((ms % 1000) / 10);
+            
+            return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${String(centiseconds).padStart(2, '0')}`;
+        }
+        
+        function formatPlayTime(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            const secsPart = Math.floor(secs);
+            const centiSecs = Math.floor((secs - secsPart) * 100);
+            return `${mins.toString().padStart(2, '0')}:${secsPart.toString().padStart(2, '0')}.${centiSecs.toString().padStart(2, '0')}`;
+        }
+        
+        function formatDuration(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            return `${mins}:${secs.toString().padStart(2, '0')}`;
+        }
+        
+        // 设置视频开始时间
+        function setVideoStartTime() {
+            const timeInput = document.getElementById('videoTimeInput').value;
+            if (!timeInput) {
+                alert('请输入视频开始时间');
+                return;
+            }
+            
+            if (timeToMilliseconds(timeInput) === null) {
+                alert('时间格式错误! 请使用 HH:MM:SS.mm 格式');
+                return;
+            }
+            
+            videoStartTimeStr = timeInput;
+            document.getElementById('videoStartTime').textContent = videoStartTimeStr;
+            
+            if (originalIMUData && originalIMUData.length > 0) {
+                alignData();
+            }
+        }
+        
+        // 对齐数据
+        function alignData() {
+            if (!videoStartTimeStr || !originalIMUData || originalIMUData.length === 0) {
+                return;
+            }
+            
+            const videoStartMs = timeToMilliseconds(videoStartTimeStr);
+            const videoEndMs = videoStartMs + video.duration * 1000;
+            
+            imuData = originalIMUData.filter(d => {
+                return d.timeMs >= videoStartMs && d.timeMs <= videoEndMs;
+            }).map(d => ({
+                ...d,
+                relativeTime: d.timeMs - videoStartMs
+            }));
+            
+            if (imuData.length === 0) {
+                alert('视频时间范围内没有找到IMU数据');
+                document.getElementById('syncIndicator').classList.add('out-of-sync');
+                return;
+            }
+            
+            // 计算转换后的数据
+            calculateTransformedData();
+            
+            document.getElementById('syncIndicator').classList.remove('out-of-sync');
+            console.log(`成功对齐 ${imuData.length} 个数据点`);
+            
+            if (chart && video.duration) {
+                chart.options.scales.x.max = video.duration;
+            }
+            
+            updateChartData();
+        }
+        
+        // 计算转换后的数据
+        
+        function calculateTransformedData() {
+            if (!imuData || imuData.length === 0) return;
+            
+            const R_imu_to_board = rotationTransform.clone().invert();
+            
+            transformedIMUData = imuData.map(data => {
+                // IMU的原始旋转（ZYX顺序）
+                const imuRoll = (data.angleX || 0) * Math.PI / 180;
+                const imuPitch = (data.angleY || 0) * Math.PI / 180;
+                const imuYaw = (data.angleZ || 0) * Math.PI / 180;
+                
+                // 创建IMU旋转矩阵（ZYX顺序）
+                const imuEuler = new THREE.Euler(imuRoll, imuPitch, imuYaw, 'ZYX');
+                const R_world_to_imu = new THREE.Matrix4();
+                R_world_to_imu.makeRotationFromEuler(imuEuler);
+                
+                // 计算板的旋转矩阵
+                const R_world_to_board = new THREE.Matrix4();
+                R_world_to_board.multiplyMatrices(R_world_to_imu, R_imu_to_board);
+                
+                // 提取转换后的欧拉角（ZYX顺序）
+                const boardEuler = new THREE.Euler();
+                boardEuler.setFromRotationMatrix(R_world_to_board, 'ZYX');
+                
+                return {
+                    ...data,
+                    transformedAngleX: boardEuler.x * 180 / Math.PI,
+                    transformedAngleY: boardEuler.y * 180 / Math.PI,
+                    transformedAngleZ: boardEuler.z * 180 / Math.PI
+                };
+            });
+        }
+                
+        // 切换数据类型
+        function toggleDataType() {
+            showTransformedData = !showTransformedData;
+            const indicator = document.getElementById('dataTypeIndicator');
+            const button = document.getElementById('toggleDataType');
+            
+            if (showTransformedData) {
+                indicator.textContent = '转换后雪板数据';
+                indicator.style.background = '#27ae60';
+                button.textContent = '切换到原始数据';
+            } else {
+                indicator.textContent = '原始IMU数据';
+                indicator.style.background = '#e74c3c';
+                button.textContent = '切换到转换后数据';
+            }
+            
+            updateChartData();
+        }
+        
+        // 初始化图表
+        function initChart() {
+            const ctx = document.getElementById('imuChart').getContext('2d');
+            
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    datasets: []
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                    plugins: {
+                        legend: {
+                            display: true,
+                            labels: {
+                                color: '#f0f0f0',
+                                font: {
+                                    size: 12
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            type: 'linear',
+                            display: true,
+                            title: {
+                                display: true,
+                                text: '相对时间 (秒)',
+                                color: '#f0f0f0'
+                            },
+                            grid: {
+                                color: '#333'
+                            },
+                            ticks: {
+                                color: '#aaa'
+                            },
+                            min: 0,
+                            max: 60 // 默认显示60秒
+                        },
+                        y: {
+                            display: true,
+                            title: {
+                                display: true,
+                                text: '值',
+                                color: '#f0f0f0'
+                            },
+                            grid: {
+                                color: '#333'
+                            },
+                            ticks: {
+                                color: '#aaa'
+                            }
+                        }
+                    },
+                    animation: {
+                        duration: 0 // 禁用动画以提高性能
+                    }
+                }
+            });
+            
+            // 添加垂直线插件
+            Chart.register({
+                id: 'verticalLine',
+                afterDraw: (chart) => {
+                    if (video && video.duration > 0) {
+                        const ctx = chart.ctx;
+                        const xAxis = chart.scales.x;
+                        const yAxis = chart.scales.y;
+                        const currentTime = video.currentTime;
+                        const x = xAxis.getPixelForValue(currentTime);
+                        
+                        if (x >= xAxis.left && x <= xAxis.right) {
+                            ctx.save();
+                            ctx.beginPath();
+                            ctx.moveTo(x, yAxis.top);
+                            ctx.lineTo(x, yAxis.bottom);
+                            ctx.lineWidth = 2;
+                            ctx.strokeStyle = '#ff6b6b';
+                            ctx.stroke();
+                            ctx.restore();
+                        }
+                    }
+                }
+            });
+        }
+        
+        // 更新图表数据
+        function updateChartData() {
+            if (!chart || !imuData || imuData.length === 0) return;
+            
+            const datasets = [];
+            const colors = {
+                accX: '#ff6b6b',
+                accY: '#4ecdc4',
+                accZ: '#45b7d1',
+                gyroX: '#f9ca24',
+                gyroY: '#f0932b',
+                gyroZ: '#eb4d4b',
+                angleX: '#a29bfe',
+                angleY: '#fd79a8',
+                angleZ: '#6c5ce7'
+            };
+            
+            let fields = [
+                { id: 'showAccX', key: 'accX', label: 'aX (m/s²)' },
+                { id: 'showAccY', key: 'accY', label: 'aY (m/s²)' },
+                { id: 'showAccZ', key: 'accZ', label: 'aZ (m/s²)' },
+                { id: 'showGyroX', key: 'gyroX', label: 'Gx (°/s)' },
+                { id: 'showGyroY', key: 'gyroY', label: 'Gy (°/s)' },
+                { id: 'showGyroZ', key: 'gyroZ', label: 'Gz (°/s)' },
+                { id: 'showAngleX', key: 'angleX', label: '角度X (°)' },
+                { id: 'showAngleY', key: 'angleY', label: '角度Y (°)' },
+                { id: 'showAngleZ', key: 'angleZ', label: '角度Z (°)' }
+            ];
+            
+            // 如果显示转换后的数据，创建新的fields数组
+            if (showTransformedData && transformedIMUData) {
+                fields = fields.map(field => {
+                    if (field.key === 'angleX') return { ...field, key: 'transformedAngleX' };
+                    if (field.key === 'angleY') return { ...field, key: 'transformedAngleY' };
+                    if (field.key === 'angleZ') return { ...field, key: 'transformedAngleZ' };
+                    return field;
+                });
+            }
+            
+            const dataSource = showTransformedData && transformedIMUData ? transformedIMUData : imuData;
+            
+            fields.forEach(field => {
+                const checkbox = document.getElementById(field.id);
+                if (checkbox && checkbox.checked) {
+                    datasets.push({
+                        label: field.label + (showTransformedData && field.key.includes('transformed') ? ' (转换后)' : ''),
+                        data: dataSource.map(d => ({
+                            x: d.relativeTime / 1000,
+                            y: d[field.key] || 0
+                        })),
+                        borderColor: colors[field.key.replace('transformed', '').replace('Angle', 'angle')],
+                        backgroundColor: colors[field.key.replace('transformed', '').replace('Angle', 'angle')] + '20',
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        tension: 0.1
+                    });
+                }
+            });
+            
+            chart.data.datasets = datasets;
+            chart.update('none');
+        }
+        
+        // 更新3D动画（30Hz固定频率）
+        function updateVisualization() {
+            if (!imuData || imuData.length === 0 || !video) return;
+            
+            const currentVideoMs = video.currentTime * 1000;
+            let dataIndex = 0;
+            
+            for (let i = 0; i < imuData.length; i++) {
+                if (imuData[i].relativeTime <= currentVideoMs) {
+                    dataIndex = i;
+                } else {
+                    break;
+                }
+            }
+            
+            const data = imuData[dataIndex];
+            if (!data) return;
+            
+            // IMU测量的欧拉角（ZYX顺序，相对于世界坐标系ENU）
+            const imuRoll = (data.angleX || 0) * Math.PI / 180;   // 绕X轴
+            const imuPitch = (data.angleY || 0) * Math.PI / 180;  // 绕Y轴
+            const imuYaw = (data.angleZ || 0) * Math.PI / 180;    // 绕Z轴
+            
+            // 创建IMU在世界坐标系中的旋转矩阵（ZYX顺序）
+            // 注意：Three.js的Euler构造函数参数顺序是(x, y, z)，
+            // 但ZYX表示先Z后Y再X，所以需要特别注意
+            const imuEuler = new THREE.Euler(imuRoll, imuPitch, imuYaw, 'ZYX');
+            const R_world_to_imu = new THREE.Matrix4();
+            R_world_to_imu.makeRotationFromEuler(imuEuler);
+            
+            // 计算板在世界坐标系中的姿态
+            // R_world_to_board = R_world_to_imu * R_imu_to_board
+            // 其中 R_imu_to_board = R_board_to_imu^(-1)
+            const R_imu_to_board = rotationTransform.clone().invert();
+            const R_world_to_board = new THREE.Matrix4();
+            R_world_to_board.multiplyMatrices(R_world_to_imu, R_imu_to_board);
+            
+            // 应用到靴子模型
+            bootGroup2.rotation.setFromRotationMatrix(R_world_to_board);
+            
+            // 提取板的欧拉角用于显示（使用相同的ZYX顺序）
+            const boardEuler = new THREE.Euler();
+            boardEuler.setFromRotationMatrix(R_world_to_board, 'ZYX');
+            
+            // 更新显示信息
+            document.getElementById('currentRoll').textContent = (boardEuler.x * 180 / Math.PI).toFixed(2) + '°';
+            document.getElementById('currentPitch').textContent = (boardEuler.y * 180 / Math.PI).toFixed(2) + '°';
+            document.getElementById('currentYaw').textContent = (boardEuler.z * 180 / Math.PI).toFixed(2) + '°';
+        }
+        
+        // 更新FPS显示
+        function updateFPSDisplay(currentTime) {
+            frameCount++;
+            
+            if (currentTime - lastFPSTime >= 1000) {
+                const fps = frameCount;
+                document.getElementById('fpsDisplay').textContent = `${fps} FPS`;
+                frameCount = 0;
+                lastFPSTime = currentTime;
+            }
+        }
+        
+        // 视频事件监听
+        document.getElementById('videoInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const url = URL.createObjectURL(file);
+                video.src = url;
+                video.style.display = 'block';
+                document.getElementById('videoPlaceholder').style.display = 'none';
+                
+                video.addEventListener('loadedmetadata', function() {
+                    document.getElementById('videoDuration').textContent = formatDuration(video.duration);
+                    
+                    if (chart) {
+                        chart.options.scales.x.max = video.duration;
+                        chart.update();
+                    }
+                });
+            }
+        });
+        
+        // 时间更新事件（只更新时间显示，不更新3D动画）
+        video.addEventListener('timeupdate', function() {
+            document.getElementById('currentTime').textContent = formatPlayTime(video.currentTime);
+        });
+        
+        // 复选框变化监听
+        document.querySelectorAll('.checkbox-group input[type="checkbox"]').forEach(checkbox => {
+            checkbox.addEventListener('change', () => {
+                if (imuData && imuData.length > 0) {
+                    updateChartData();
+                }
+            });
+        });
+        
+        // 主动画循环
+        function animate(currentTime) {
+            requestAnimationFrame(animate);
+            
+            // 控制3D动画更新频率为30Hz
+            if (currentTime - lastAnimationTime >= frameInterval) {
+                // 更新3D动画
+                updateVisualization();
+                
+                // 更新图表（30Hz）
+                if (chart && video && !video.paused) {
+                    chart.update('none');
+                }
+                
+                // 更新FPS显示
+                updateFPSDisplay(currentTime);
+                
+                lastAnimationTime = currentTime - (currentTime - lastAnimationTime) % frameInterval;
+            }
+            
+            // 渲染场景（每帧都渲染以保持流畅的鼠标交互）
+            if (staticRenderer && staticScene && staticCamera) {
+                staticRenderer.render(staticScene, staticCamera);
+            }
+            
+            if (animRenderer && animScene && animCamera) {
+                animRenderer.render(animScene, animCamera);
+            }
+        }
+        
+        // 初始化
+        initScenes();
+        initChart();
+    </script>
+</body>
+</html>

@@ -1,0 +1,1648 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>视频-IMU数据同步可视化工具</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0f0f0f;
+            color: #f0f0f0;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+        
+        .header h1 {
+            font-size: 2em;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+        
+        .header p {
+            font-size: 1em;
+            opacity: 0.9;
+        }
+        
+        .main-layout {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+        }
+        
+        .video-section {
+            background: #1a1a1a;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+        }
+        
+        .chart-section {
+            background: #1a1a1a;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+        }
+        
+        .control-section {
+            background: #1a1a1a;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+        }
+        
+        .section-title {
+            font-size: 1.2em;
+            margin-bottom: 15px;
+            color: #667eea;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .video-wrapper {
+            position: relative;
+            background: #000;
+            border-radius: 8px;
+            overflow: hidden;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        video {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+        
+        .video-placeholder {
+            width: 100%;
+            height: 300px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #2a2a2a;
+            border-radius: 8px;
+            flex-direction: column;
+            gap: 20px;
+        }
+        
+        .upload-btn {
+            padding: 12px 24px;
+            background: #667eea;
+            border: none;
+            border-radius: 6px;
+            color: white;
+            font-size: 1em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .upload-btn:hover {
+            background: #764ba2;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+        }
+        
+        .chart-container {
+            position: relative;
+            height: 400px;
+            margin-bottom: 20px;
+        }
+        
+        .transform-controls {
+            background: #2a2a2a;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+        
+        .transform-controls h3 {
+            font-size: 1.1em;
+            margin-bottom: 10px;
+            color: #f0f0f0;
+        }
+        
+        .euler-inputs, .matrix-inputs {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        
+        .matrix-inputs {
+            grid-template-columns: repeat(3, 1fr);
+            gap: 5px;
+        }
+        
+        .euler-inputs input, .matrix-inputs input {
+            padding: 8px;
+            background: #3a3a3a;
+            border: 1px solid #4a4a4a;
+            border-radius: 4px;
+            color: #f0f0f0;
+            text-align: center;
+        }
+        
+        .euler-inputs label {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            font-size: 0.9em;
+            color: #aaa;
+        }
+        
+        .transform-mode-selector {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        
+        .mode-btn {
+            padding: 8px 16px;
+            background: #3a3a3a;
+            border: 1px solid #4a4a4a;
+            border-radius: 6px;
+            color: #f0f0f0;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .mode-btn.active {
+            background: #667eea;
+            border-color: #667eea;
+        }
+        
+        .data-type-indicator {
+            display: inline-block;
+            padding: 4px 12px;
+            background: #3a3a3a;
+            border-radius: 20px;
+            font-size: 0.9em;
+            margin-left: 10px;
+        }
+        
+        .data-type-indicator.raw {
+            background: #e74c3c;
+        }
+        
+        .data-type-indicator.transformed {
+            background: #27ae60;
+        }
+        
+        .imu-controls {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 15px;
+        }
+        
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            padding: 8px 12px;
+            background: #2a2a2a;
+            border-radius: 6px;
+            transition: all 0.3s ease;
+        }
+        
+        .checkbox-group:hover {
+            background: #3a3a3a;
+        }
+        
+        .checkbox-group input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+        
+        .checkbox-group label {
+            cursor: pointer;
+            font-size: 0.9em;
+        }
+        
+        .turn-detection-controls {
+            background: #2a2a2a;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+        }
+        
+        .turn-detection-controls h3 {
+            font-size: 1.1em;
+            margin-bottom: 10px;
+            color: #f0f0f0;
+        }
+        
+        .filter-controls {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        
+        .filter-control {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .filter-control label {
+            font-size: 0.9em;
+            color: #aaa;
+            min-width: 120px;
+        }
+        
+        .filter-control input[type="number"] {
+            flex: 1;
+            padding: 6px 10px;
+            background: #3a3a3a;
+            border: 1px solid #4a4a4a;
+            border-radius: 4px;
+            color: #f0f0f0;
+        }
+        
+        .filter-control input[type="range"] {
+            flex: 1;
+            height: 6px;
+            background: #3a3a3a;
+            border-radius: 3px;
+            outline: none;
+            -webkit-appearance: none;
+        }
+        
+        .filter-control input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            background: #667eea;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+        
+        .filter-control .value-display {
+            min-width: 50px;
+            text-align: right;
+            color: #667eea;
+            font-weight: 600;
+        }
+        
+        .sync-controls {
+            background: #1a1a1a;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+        }
+        
+        .slider-container {
+            margin: 20px 0 30px 0;
+        }
+        
+        .slider-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            font-size: 0.9em;
+            color: #aaa;
+        }
+        
+        input[type="range"] {
+            width: 100%;
+            height: 8px;
+            background: #3a3a3a;
+            border-radius: 4px;
+            outline: none;
+            -webkit-appearance: none;
+            cursor: pointer;
+        }
+        
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 20px;
+            height: 20px;
+            background: #667eea;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+            box-shadow: 0 0 10px rgba(102, 126, 234, 0.5);
+        }
+        
+        .fine-control {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            justify-content: center;
+            margin-top: 10px;
+        }
+        
+        .fine-control button {
+            padding: 8px 16px;
+            background: #3a3a3a;
+            border: none;
+            border-radius: 6px;
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .fine-control button:hover {
+            background: #4a4a4a;
+        }
+        
+        .time-info {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 15px;
+            padding: 15px;
+            background: #2a2a2a;
+            border-radius: 8px;
+        }
+        
+        .time-info-item {
+            text-align: center;
+        }
+        
+        .time-info-label {
+            font-size: 0.9em;
+            color: #aaa;
+            margin-bottom: 5px;
+        }
+        
+        .time-info-value {
+            font-size: 1.2em;
+            color: #667eea;
+            font-weight: 600;
+        }
+        
+        .sync-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #4ade80;
+            margin-left: 10px;
+            animation: pulse 2s infinite;
+        }
+        
+        .sync-indicator.out-of-sync {
+            background: #f87171;
+        }
+        
+        .alert {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 15px 25px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            z-index: 1000;
+            font-size: 1.1em;
+            max-width: 600px;
+            text-align: center;
+            animation: slideDown 0.3s ease;
+        }
+        
+        .alert.success {
+            background: #10b981;
+            color: white;
+        }
+        
+        .alert.warning {
+            background: #f59e0b;
+            color: white;
+        }
+        
+        .alert.error {
+            background: #ef4444;
+            color: white;
+        }
+        
+        .apply-btn {
+            padding: 10px 20px;
+            background: #667eea;
+            border: none;
+            border-radius: 6px;
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 10px;
+            width: 100%;
+        }
+        
+        .apply-btn:hover {
+            background: #764ba2;
+            transform: translateY(-2px);
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        
+        @keyframes slideDown {
+            from { transform: translate(-50%, -100%); opacity: 0; }
+            to { transform: translate(-50%, 0); opacity: 1; }
+        }
+        
+        input[type="file"] {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎿 视频-IMU数据同步可视化工具</h1>
+            <p>精确对齐滑雪视频与IMU传感器数据，分析运动姿态</p>
+        </div>
+        
+        <div class="main-layout">
+            <!-- 视频部分 -->
+            <div class="video-section">
+                <h2 class="section-title">
+                    📹 视频播放器
+                    <span class="sync-indicator" id="syncIndicator"></span>
+                </h2>
+                <div class="video-wrapper">
+                    <div class="video-placeholder" id="videoPlaceholder">
+                        <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"></rect>
+                            <line x1="7" y1="2" x2="7" y2="22"></line>
+                            <line x1="17" y1="2" x2="17" y2="22"></line>
+                            <line x1="2" y1="12" x2="22" y2="12"></line>
+                        </svg>
+                        <input type="file" id="videoInput" accept="video/*">
+                        <button class="upload-btn" onclick="document.getElementById('videoInput').click()">
+                            选择视频文件
+                        </button>
+                        <p style="color: #aaa; font-size: 0.9em;">支持 MP4, MOV, AVI 等格式</p>
+                    </div>
+                    <video id="skiVideo" controls style="display: none;"></video>
+                </div>
+                <div class="time-info">
+                    <div class="time-info-item">
+                        <div class="time-info-label">当前时间</div>
+                        <div class="time-info-value" id="currentTime">00:00.00</div>
+                    </div>
+                    <div class="time-info-item">
+                        <div class="time-info-label">视频开始时间</div>
+                        <div class="time-info-value" id="videoStartTime">--:--:--.--</div>
+                    </div>
+                    <div class="time-info-item">
+                        <div class="time-info-label">对应IMU时间</div>
+                        <div class="time-info-value" id="currentIMUTime">--:--:--.--</div>
+                    </div>
+                    <div class="time-info-item">
+                        <div class="time-info-label">视频时长</div>
+                        <div class="time-info-value" id="videoDuration">--:--</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 图表部分（现在在上面） -->
+            <div class="chart-section">
+                <h2 class="section-title">
+                    📊 IMU数据可视化
+                    <span class="data-type-indicator" id="dataTypeIndicator">原始数据</span>
+                </h2>
+                
+                <!-- 坐标变换控制 -->
+                <div class="transform-controls">
+                    <h3>🔄 雪板到IMU坐标变换 (Board → IMU)</h3>
+                    <div class="transform-mode-selector">
+                        <button class="mode-btn active" onclick="setTransformMode('euler')">欧拉角输入</button>
+                        <button class="mode-btn" onclick="setTransformMode('matrix')">旋转矩阵输入</button>
+                    </div>
+                    
+                    <!-- 欧拉角输入 -->
+                    <div id="eulerInputs" class="euler-inputs">
+                        <label>
+                            <span>Yaw (Z轴)</span>
+                            <input type="number" id="eulerYaw" value="0" step="0.1" placeholder="度">
+                        </label>
+                        <label>
+                            <span>Pitch (Y轴)</span>
+                            <input type="number" id="eulerPitch" value="0" step="0.1" placeholder="度">
+                        </label>
+                        <label>
+                            <span>Roll (X轴)</span>
+                            <input type="number" id="eulerRoll" value="0" step="0.1" placeholder="度">
+                        </label>
+                    </div>
+                    
+                    <!-- 旋转矩阵输入 -->
+                    <div id="matrixInputs" class="matrix-inputs" style="display: none;">
+                        <input type="number" id="r11" value="1" step="0.001" placeholder="R11">
+                        <input type="number" id="r12" value="0" step="0.001" placeholder="R12">
+                        <input type="number" id="r13" value="0" step="0.001" placeholder="R13">
+                        <input type="number" id="r21" value="0" step="0.001" placeholder="R21">
+                        <input type="number" id="r22" value="1" step="0.001" placeholder="R22">
+                        <input type="number" id="r23" value="0" step="0.001" placeholder="R23">
+                        <input type="number" id="r31" value="0" step="0.001" placeholder="R31">
+                        <input type="number" id="r32" value="0" step="0.001" placeholder="R32">
+                        <input type="number" id="r33" value="1" step="0.001" placeholder="R33">
+                    </div>
+                    
+                    <button class="apply-btn" onclick="applyTransform()">应用变换</button>
+                </div>
+                
+                <!-- 图表 -->
+                <div class="chart-container">
+                    <canvas id="imuChart"></canvas>
+                </div>
+                
+                <!-- 转弯检测控制 -->
+                <div class="turn-detection-controls">
+                    <h3>🎿 转弯检测滤波器</h3>
+                    <div class="filter-controls">
+                        <div class="filter-control">
+                            <label>窗口滤波器:</label>
+                            <input type="number" id="windowFilter" value="0.5" step="0.1" min="0.1" max="2"> Hz
+                        </div>
+                        <div class="filter-control">
+                            <label>主滤波器:</label>
+                            <input type="number" id="mainFilter" value="3.0" step="0.1" min="0.5" max="10"> Hz
+                        </div>
+                        <div class="filter-control">
+                            <label>最小持续时间:</label>
+                            <input type="number" id="minDuration" value="0.5" step="0.1" min="0.1" max="2"> 秒
+                        </div>
+                        <div class="filter-control">
+                            <label>最小间隔:</label>
+                            <input type="number" id="minInterval" value="1.0" step="0.1" min="0.5" max="5"> 秒
+                        </div>
+                        <div class="filter-control">
+                            <label>幅度阈值 (%):</label>
+                            <input type="range" id="amplitudeThreshold" value="25" min="10" max="50" step="5"
+                                   oninput="document.getElementById('ampValue').textContent = this.value + '%'">
+                            <span class="value-display" id="ampValue">25%</span>
+                        </div>
+                        <div class="filter-control">
+                            <label>Roll/Pitch比例:</label>
+                            <input type="number" id="rollPitchRatio" value="2.0" step="0.5" min="1.0" max="10">
+                        </div>
+                    </div>
+                    <div style="margin-top: 10px; font-size: 0.85em; color: #aaa;">
+                        <label style="display: flex; align-items: center; gap: 5px;">
+                            <input type="checkbox" id="useAdaptiveThreshold" checked>
+                            使用自适应阈值（基于信号最大值）
+                        </label>
+                    </div>
+                    <button class="apply-btn" onclick="detectTurns()">检测转弯</button>
+                </div>
+            </div>
+            
+            <!-- 控制部分（现在在下面） -->
+            <div class="control-section">
+                <h2 class="section-title">📊 数据选择</h2>
+                <div class="imu-controls">
+                    <div style="width: 100%; font-size: 0.9em; color: #aaa; margin-bottom: 10px;">不含重力加速度:</div>
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="showAccX" checked>
+                        <label for="showAccX">aX</label>
+                    </div>
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="showAccY" checked>
+                        <label for="showAccY">aY</label>
+                    </div>
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="showAccZ" checked>
+                        <label for="showAccZ">aZ</label>
+                    </div>
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="showAccMag">
+                        <label for="showAccMag">|a|</label>
+                    </div>
+                    
+                    <div style="width: 100%; font-size: 0.9em; color: #aaa; margin: 10px 0;">含重力加速度:</div>
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="showAccGX">
+                        <label for="showAccGX">Ax</label>
+                    </div>
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="showAccGY">
+                        <label for="showAccGY">Ay</label>
+                    </div>
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="showAccGZ">
+                        <label for="showAccGZ">Az</label>
+                    </div>
+                    
+                    <div style="width: 100%; font-size: 0.9em; color: #aaa; margin: 10px 0;">陀螺仪:</div>
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="showGyroX">
+                        <label for="showGyroX">Gx</label>
+                    </div>
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="showGyroY">
+                        <label for="showGyroY">Gy</label>
+                    </div>
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="showGyroZ">
+                        <label for="showGyroZ">Gz</label>
+                    </div>
+                    
+                    <div style="width: 100%; font-size: 0.9em; color: #aaa; margin: 10px 0;">转换后（雪板坐标系）:</div>
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="showSkiX">
+                        <label for="showSkiX">X (Roll/立刃)</label>
+                    </div>
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="showSkiY">
+                        <label for="showSkiY">Y (Pitch/俯仰)</label>
+                    </div>
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="showSkiZ">
+                        <label for="showSkiZ">Z (Yaw/偏航)</label>
+                    </div>
+                    
+                    <div style="width: 100%; font-size: 0.9em; color: #aaa; margin: 10px 0;">滤波信号:</div>
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="showWindowFiltered">
+                        <label for="showWindowFiltered">0.5Hz窗口滤波</label>
+                    </div>
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="showMainFiltered">
+                        <label for="showMainFiltered">3Hz主滤波</label>
+                    </div>
+                </div>
+                
+                <div style="text-align: center; margin-top: 15px;">
+                    <input type="file" id="imuInput" accept=".csv,.txt">
+                    <button class="upload-btn" onclick="document.getElementById('imuInput').click()">
+                        上传IMU数据 (CSV)
+                    </button>
+                </div>
+            </div>
+            
+            <!-- 同步控制 -->
+            <div class="sync-controls">
+                <h2 class="section-title">🎯 同步控制</h2>
+                
+                <div class="slider-container">
+                    <div class="slider-label">
+                        <span>时间轴同步滑块（精细调整）</span>
+                        <span id="sliderTime">0.00s</span>
+                    </div>
+                    <input type="range" id="syncSlider" min="0" max="10000" value="0" step="1">
+                    <div class="fine-control">
+                        <button onclick="adjustTime(-100)">-100ms</button>
+                        <button onclick="adjustTime(-33)">-1帧</button>
+                        <button onclick="adjustTime(-10)">-10ms</button>
+                        <button onclick="adjustTime(10)">+10ms</button>
+                        <button onclick="adjustTime(33)">+1帧</button>
+                        <button onclick="adjustTime(100)">+100ms</button>
+                    </div>
+                </div>
+                
+                <div style="display: flex; gap: 15px; margin-top: 20px;">
+                    <div style="flex: 1;">
+                        <label style="display: block; margin-bottom: 5px; color: #aaa;">视频开始时间:</label>
+                        <input type="text" id="videoTimeInput" placeholder="HH:MM:SS.mm" 
+                               style="width: 100%; padding: 8px 12px; background: #2a2a2a; 
+                                      border: 1px solid #3a3a3a; border-radius: 6px; 
+                                      color: #f0f0f0; font-size: 1em;">
+                    </div>
+                    <button class="apply-btn" onclick="setVideoStartTime()" style="width: auto; margin-top: 18px;">
+                        设置时间
+                    </button>
+                </div>
+                
+                <p style="margin-top: 15px; font-size: 0.9em; color: #aaa; line-height: 1.5;">
+                    💡 提示：输入视频的开始时间（格式：HH:MM:SS.mm，精确到厘秒），系统会自动匹配IMU数据中的对应时间。
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 全局变量
+        let video = document.getElementById('skiVideo');
+        let slider = document.getElementById('syncSlider');
+        let chart = null;
+        let imuData = null;
+        let originalIMUData = null;
+        let transformedData = null;
+        let currentOffset = 0;
+        let videoStartTimeStr = null;
+        let imuStartTimeStr = null;
+        let imuEndTimeStr = null;
+        
+        // 坐标变换相关
+        let transformMode = 'euler';
+        let R_bi = null; // Board->IMU 旋转矩阵
+        let isTransformed = false;
+        
+        // 转弯检测相关
+        let turnDetectionResults = null;
+        let windowFiltered = null;
+        let mainFiltered = null;
+        
+        // 显示提示信息
+        function showAlert(message, type = 'info') {
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert ${type}`;
+            alertDiv.textContent = message;
+            document.body.appendChild(alertDiv);
+            
+            setTimeout(() => {
+                alertDiv.style.animation = 'slideDown 0.3s ease reverse';
+                setTimeout(() => alertDiv.remove(), 300);
+            }, 5000);
+        }
+        
+        // 设置坐标变换模式
+        function setTransformMode(mode) {
+            transformMode = mode;
+            const eulerInputs = document.getElementById('eulerInputs');
+            const matrixInputs = document.getElementById('matrixInputs');
+            const buttons = document.querySelectorAll('.mode-btn');
+            
+            buttons.forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            if (mode === 'euler') {
+                eulerInputs.style.display = 'grid';
+                matrixInputs.style.display = 'none';
+            } else {
+                eulerInputs.style.display = 'none';
+                matrixInputs.style.display = 'grid';
+            }
+        }
+        
+        // 欧拉角转旋转矩阵 (ZYX顺序)
+        function eulerToMatrix(yaw, pitch, roll) {
+            const cy = Math.cos(yaw * Math.PI / 180);
+            const sy = Math.sin(yaw * Math.PI / 180);
+            const cp = Math.cos(pitch * Math.PI / 180);
+            const sp = Math.sin(pitch * Math.PI / 180);
+            const cr = Math.cos(roll * Math.PI / 180);
+            const sr = Math.sin(roll * Math.PI / 180);
+            
+            return [
+                [cy*cp, cy*sp*sr - sy*cr, cy*sp*cr + sy*sr],
+                [sy*cp, sy*sp*sr + cy*cr, sy*sp*cr - cy*sr],
+                [-sp, cp*sr, cp*cr]
+            ];
+        }
+        
+        // 旋转矩阵转欧拉角
+        function matrixToEuler(R) {
+            const sy = Math.sqrt(R[0][0] * R[0][0] + R[1][0] * R[1][0]);
+            const singular = sy < 1e-6;
+            
+            let yaw, pitch, roll;
+            
+            if (!singular) {
+                roll = Math.atan2(R[2][1], R[2][2]);
+                pitch = Math.atan2(-R[2][0], sy);
+                yaw = Math.atan2(R[1][0], R[0][0]);
+            } else {
+                roll = Math.atan2(-R[1][2], R[1][1]);
+                pitch = Math.atan2(-R[2][0], sy);
+                yaw = 0;
+            }
+            
+            return {
+                yaw: yaw * 180 / Math.PI,
+                pitch: pitch * 180 / Math.PI,
+                roll: roll * 180 / Math.PI
+            };
+        }
+        
+        // 应用坐标变换
+        function applyTransform() {
+            if (!imuData || imuData.length === 0) {
+                showAlert('请先加载IMU数据', 'error');
+                return;
+            }
+            
+            // 获取旋转矩阵
+            if (transformMode === 'euler') {
+                const yaw = parseFloat(document.getElementById('eulerYaw').value) || 0;
+                const pitch = parseFloat(document.getElementById('eulerPitch').value) || 0;
+                const roll = parseFloat(document.getElementById('eulerRoll').value) || 0;
+                R_bi = eulerToMatrix(yaw, pitch, roll);
+                
+                // 更新矩阵输入框
+                document.getElementById('r11').value = R_bi[0][0].toFixed(4);
+                document.getElementById('r12').value = R_bi[0][1].toFixed(4);
+                document.getElementById('r13').value = R_bi[0][2].toFixed(4);
+                document.getElementById('r21').value = R_bi[1][0].toFixed(4);
+                document.getElementById('r22').value = R_bi[1][1].toFixed(4);
+                document.getElementById('r23').value = R_bi[1][2].toFixed(4);
+                document.getElementById('r31').value = R_bi[2][0].toFixed(4);
+                document.getElementById('r32').value = R_bi[2][1].toFixed(4);
+                document.getElementById('r33').value = R_bi[2][2].toFixed(4);
+            } else {
+                // 从矩阵输入获取
+                R_bi = [
+                    [parseFloat(document.getElementById('r11').value), 
+                     parseFloat(document.getElementById('r12').value), 
+                     parseFloat(document.getElementById('r13').value)],
+                    [parseFloat(document.getElementById('r21').value), 
+                     parseFloat(document.getElementById('r22').value), 
+                     parseFloat(document.getElementById('r23').value)],
+                    [parseFloat(document.getElementById('r31').value), 
+                     parseFloat(document.getElementById('r32').value), 
+                     parseFloat(document.getElementById('r33').value)]
+                ];
+                
+                // 更新欧拉角输入框
+                const euler = matrixToEuler(R_bi);
+                document.getElementById('eulerYaw').value = euler.yaw.toFixed(1);
+                document.getElementById('eulerPitch').value = euler.pitch.toFixed(1);
+                document.getElementById('eulerRoll').value = euler.roll.toFixed(1);
+            }
+            
+            // 应用变换
+            transformData();
+            isTransformed = true;
+            document.getElementById('dataTypeIndicator').textContent = '转换后数据';
+            document.getElementById('dataTypeIndicator').className = 'data-type-indicator transformed';
+            
+            updateChartData();
+            showAlert('坐标变换已应用', 'success');
+        }
+        
+        // 变换数据
+        function transformData() {
+            if (!imuData || !R_bi) return;
+            
+            transformedData = imuData.map(d => {
+                // 变换陀螺仪数据
+                const gyro = [d.gyroX || 0, d.gyroY || 0, d.gyroZ || 0];
+                const gyroTransformed = matrixVectorMultiply(transpose(R_bi), gyro);
+                
+                // 变换加速度数据
+                const acc = [d.accX || 0, d.accY || 0, d.accZ || 0];
+                const accTransformed = matrixVectorMultiply(transpose(R_bi), acc);
+                
+                const accG = [d.AccX || 0, d.AccY || 0, d.AccZ || 0];
+                const accGTransformed = matrixVectorMultiply(transpose(R_bi), accG);
+                
+                return {
+                    ...d,
+                    // 雪板坐标系数据
+                    skiX: gyroTransformed[0],
+                    skiY: gyroTransformed[1],
+                    skiZ: gyroTransformed[2],
+                    accSkiX: accTransformed[0],
+                    accSkiY: accTransformed[1],
+                    accSkiZ: accTransformed[2],
+                    AccSkiX: accGTransformed[0],
+                    AccSkiY: accGTransformed[1],
+                    AccSkiZ: accGTransformed[2]
+                };
+            });
+        }
+        
+        // 矩阵转置
+        function transpose(matrix) {
+            return matrix[0].map((_, colIndex) => matrix.map(row => row[colIndex]));
+        }
+        
+        // 矩阵向量乘法
+        function matrixVectorMultiply(matrix, vector) {
+            return matrix.map(row => 
+                row.reduce((sum, val, idx) => sum + val * vector[idx], 0)
+            );
+        }
+        
+        // Butterworth滤波器设计
+        function butterworth(order, fc, fs, type = 'low') {
+            const wc = 2 * Math.PI * fc / fs;
+            const a = Math.tan(wc / 2);
+            
+            if (order === 2) {
+                if (type === 'low') {
+                    const a2 = a * a;
+                    const sqrt2a = Math.sqrt(2) * a;
+                    const denom = 1 + sqrt2a + a2;
+                    
+                    const b = [a2 / denom, 2 * a2 / denom, a2 / denom];
+                    const a_coef = [1, (2 * a2 - 2) / denom, (1 - sqrt2a + a2) / denom];
+                    
+                    return { b, a: a_coef };
+                }
+            }
+            
+            // 简化版本，仅支持2阶低通
+            return { b: [1, 0, 0], a: [1, 0, 0] };
+        }
+        
+        // 滤波器应用
+        function filtfilt(b, a, x) {
+            // 前向滤波
+            let y = new Array(x.length).fill(0);
+            for (let n = 0; n < x.length; n++) {
+                y[n] = b[0] * (x[n] || 0);
+                for (let k = 1; k < b.length && n >= k; k++) {
+                    y[n] += b[k] * (x[n - k] || 0);
+                }
+                for (let k = 1; k < a.length && n >= k; k++) {
+                    y[n] -= a[k] * (y[n - k] || 0);
+                }
+            }
+            
+            // 反向滤波
+            let z = new Array(x.length).fill(0);
+            for (let n = x.length - 1; n >= 0; n--) {
+                z[n] = b[0] * (y[n] || 0);
+                for (let k = 1; k < b.length && n < x.length - k; k++) {
+                    z[n] += b[k] * (y[n + k] || 0);
+                }
+                for (let k = 1; k < a.length && n < x.length - k; k++) {
+                    z[n] -= a[k] * (z[n + k] || 0);
+                }
+            }
+            
+            return z;
+        }
+        
+        // 转弯检测
+        function detectTurns() {
+            if (!transformedData || transformedData.length === 0) {
+                showAlert('请先应用坐标变换', 'error');
+                return;
+            }
+            
+            const windowFreq = parseFloat(document.getElementById('windowFilter').value) || 0.5;
+            const mainFreq = parseFloat(document.getElementById('mainFilter').value) || 3.0;
+            const minDuration = parseFloat(document.getElementById('minDuration').value) || 0.5;
+            const minInterval = parseFloat(document.getElementById('minInterval').value) || 1.0;
+            const ampPercent = parseFloat(document.getElementById('amplitudeThreshold').value) / 100 || 0.25;
+            const minRollPitchRatio = parseFloat(document.getElementById('rollPitchRatio').value) || 2.0;
+            const useAdaptive = document.getElementById('useAdaptiveThreshold').checked;
+            
+            // 获取Roll和Pitch信号
+            const gyroRoll = transformedData.map(d => d.skiX || 0);
+            const gyroPitch = transformedData.map(d => d.skiY || 0);
+            const sampleRate = 30; // 假设30Hz
+            
+            // 0.5Hz窗口滤波
+            const windowFilter = butterworth(2, windowFreq, sampleRate, 'low');
+            windowFiltered = filtfilt(windowFilter.b, windowFilter.a, gyroRoll);
+            
+            // 去除低频成分
+            const signalWithoutWindow = gyroRoll.map((val, idx) => val - windowFiltered[idx]);
+            
+            // 3Hz主滤波
+            const mainFilter = butterworth(2, mainFreq, sampleRate, 'low');
+            mainFiltered = filtfilt(mainFilter.b, mainFilter.a, signalWithoutWindow);
+            
+            // 计算自适应阈值
+            let minAmplitude;
+            if (useAdaptive) {
+                const maxSignal = Math.max(...gyroRoll.map(Math.abs));
+                minAmplitude = maxSignal * ampPercent;
+                minAmplitude = Math.max(minAmplitude, 5.0); // 保底5度/秒
+                console.log(`自适应阈值: ${minAmplitude.toFixed(1)}°/s (${ampPercent*100}% of max ${maxSignal.toFixed(1)}°/s)`);
+            } else {
+                minAmplitude = 20.0; // 固定阈值
+            }
+            
+            // 检测过零点
+            const zeroCrossings = [];
+            for (let i = 1; i < mainFiltered.length; i++) {
+                if (mainFiltered[i-1] * mainFiltered[i] < 0) {
+                    zeroCrossings.push(i);
+                }
+            }
+            
+            // 检测转弯
+            const turns = [];
+            let lastTurnTime = -Infinity;
+            
+            for (let i = 1; i < zeroCrossings.length - 1; i++) {
+                const prevSlope = mainFiltered[zeroCrossings[i]] - mainFiltered[zeroCrossings[i-1]];
+                const nextSlope = mainFiltered[zeroCrossings[i+1]] - mainFiltered[zeroCrossings[i]];
+                
+                if (prevSlope * nextSlope < 0) {
+                    const turnTime = zeroCrossings[i] / sampleRate;
+                    
+                    // 检查最小间隔
+                    if (turnTime - lastTurnTime < minInterval) continue;
+                    
+                    // 检查持续时间和幅度
+                    const windowSamples = Math.floor(minDuration * sampleRate);
+                    const start = Math.max(0, zeroCrossings[i] - windowSamples);
+                    const end = Math.min(gyroRoll.length, zeroCrossings[i] + windowSamples);
+                    
+                    const windowData = gyroRoll.slice(start, end);
+                    const peakIdx = windowData.reduce((maxIdx, val, idx, arr) => 
+                        Math.abs(val) > Math.abs(arr[maxIdx]) ? idx : maxIdx, 0);
+                    
+                    const globalPeakIdx = start + peakIdx;
+                    const peakValue = gyroRoll[globalPeakIdx];
+                    const peakAmplitude = Math.abs(peakValue);
+                    
+                    // 检查幅度阈值
+                    if (peakAmplitude < minAmplitude) continue;
+                    
+                    // 计算Roll/Pitch比例
+                    const pitchAtPeak = Math.abs(gyroPitch[globalPeakIdx]);
+                    const rollPitchRatio = peakAmplitude / (pitchAtPeak + 1e-6);
+                    
+                    // 检查Roll/Pitch比例
+                    if (rollPitchRatio < minRollPitchRatio) {
+                        console.log(`转弯被过滤: Roll/Pitch比例 ${rollPitchRatio.toFixed(1)} < ${minRollPitchRatio}`);
+                        continue;
+                    }
+                    
+                    // 检查转弯持续时间
+                    if (zeroCrossings[i] > windowSamples && zeroCrossings[i] < gyroRoll.length - windowSamples) {
+                        const prePeakIdx = start + windowData.slice(0, windowSamples).reduce((maxIdx, val, idx, arr) => 
+                            Math.abs(val) > Math.abs(arr[maxIdx]) ? idx : maxIdx, 0);
+                        const postPeakIdx = start + windowSamples + windowData.slice(windowSamples).reduce((maxIdx, val, idx, arr) => 
+                            Math.abs(val) > Math.abs(arr[maxIdx]) ? idx : maxIdx, 0);
+                        
+                        const turnDuration = (postPeakIdx - prePeakIdx) / sampleRate;
+                        
+                        if (turnDuration >= minDuration) {
+                            turns.push({
+                                index: zeroCrossings[i],
+                                peakIndex: globalPeakIdx,
+                                time: turnTime,
+                                peakTime: globalPeakIdx / sampleRate,
+                                amplitude: peakAmplitude,
+                                peakValue: peakValue,
+                                rollPitchRatio: rollPitchRatio,
+                                pitchAtPeak: pitchAtPeak,
+                                duration: turnDuration
+                            });
+                            lastTurnTime = turnTime;
+                        }
+                    }
+                }
+            }
+            
+            turnDetectionResults = {
+                turns: turns,
+                windowFiltered: windowFiltered,
+                mainFiltered: mainFiltered,
+                parameters: {
+                    minAmplitude: minAmplitude,
+                    minRollPitchRatio: minRollPitchRatio,
+                    useAdaptive: useAdaptive
+                }
+            };
+            
+            updateChartData();
+            
+            // 显示检测结果统计
+            if (turns.length > 0) {
+                const avgRatio = turns.reduce((sum, t) => sum + t.rollPitchRatio, 0) / turns.length;
+                const avgAmplitude = turns.reduce((sum, t) => sum + t.amplitude, 0) / turns.length;
+                showAlert(`检测到 ${turns.length} 个转弯，平均幅度: ${avgAmplitude.toFixed(1)}°/s，平均Roll/Pitch比: ${avgRatio.toFixed(1)}`, 'success');
+            } else {
+                showAlert('未检测到转弯，请尝试调整阈值参数', 'warning');
+            }
+        }
+        
+        // 时间相关函数
+        function timeToMilliseconds(timeStr) {
+            const parts = timeStr.split(':');
+            if (parts.length !== 3) return null;
+            
+            const hours = parseInt(parts[0]);
+            const minutes = parseInt(parts[1]);
+            const secondsParts = parts[2].split('.');
+            const seconds = parseInt(secondsParts[0]);
+            let milliseconds = 0;
+            
+            if (secondsParts[1]) {
+                const fracStr = secondsParts[1];
+                if (fracStr.length === 2) {
+                    // 厘秒输入 (HH:MM:SS.mm)
+                    milliseconds = parseInt(fracStr) * 10;
+                } else if (fracStr.length === 3) {
+                    // 毫秒输入 (HH:MM:SS.mmm)
+                    milliseconds = parseInt(fracStr);
+                } else {
+                    // 其他长度，按比例转换
+                    milliseconds = parseInt(fracStr.padEnd(3, '0').substring(0, 3));
+                }
+            }
+            
+            return hours * 3600000 + minutes * 60000 + seconds * 1000 + milliseconds;
+        }
+        
+        function millisecondsToTime(ms) {
+            const hours = Math.floor(ms / 3600000);
+            const minutes = Math.floor((ms % 3600000) / 60000);
+            const seconds = Math.floor((ms % 60000) / 1000);
+            const centiseconds = Math.floor((ms % 1000) / 10); // 只显示到厘秒
+            
+            return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${String(centiseconds).padStart(2, '0')}`;
+        }
+        
+        function formatPlayTime(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            const secsPart = Math.floor(secs);
+            const centiSecs = Math.floor((secs - secsPart) * 100);
+            return `${mins.toString().padStart(2, '0')}:${secsPart.toString().padStart(2, '0')}.${centiSecs.toString().padStart(2, '0')}`;
+        }
+        
+        function formatDuration(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            return `${mins}:${secs.toString().padStart(2, '0')}`;
+        }
+        
+        // 初始化图表
+        function initChart() {
+            const ctx = document.getElementById('imuChart').getContext('2d');
+            
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    datasets: []
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                    plugins: {
+                        legend: {
+                            display: true,
+                            labels: {
+                                color: '#f0f0f0',
+                                font: {
+                                    size: 12
+                                }
+                            }
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    label += context.parsed.y.toFixed(2);
+                                    
+                                    // 如果是转弯标记，显示额外信息
+                                    if (context.dataset.label && context.dataset.label.includes('转弯检测')) {
+                                        const turnIdx = context.dataIndex;
+                                        if (turnDetectionResults && turnDetectionResults.turns[turnIdx]) {
+                                            const turn = turnDetectionResults.turns[turnIdx];
+                                            label += `°/s (Roll/Pitch比: ${turn.rollPitchRatio.toFixed(1)})`;
+                                        }
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            type: 'linear',
+                            display: true,
+                            title: {
+                                display: true,
+                                text: '相对时间 (秒)',
+                                color: '#f0f0f0'
+                            },
+                            grid: {
+                                color: '#333'
+                            },
+                            ticks: {
+                                color: '#aaa'
+                            }
+                        },
+                        y: {
+                            display: true,
+                            title: {
+                                display: true,
+                                text: '值',
+                                color: '#f0f0f0'
+                            },
+                            grid: {
+                                color: '#333'
+                            },
+                            ticks: {
+                                color: '#aaa'
+                            }
+                        }
+                    }
+                }
+            });
+            
+            // 添加垂直线插件
+            Chart.register({
+                id: 'verticalLine',
+                afterDraw: (chart) => {
+                    if (video && video.duration > 0) {
+                        const ctx = chart.ctx;
+                        const xAxis = chart.scales.x;
+                        const yAxis = chart.scales.y;
+                        const currentTime = video.currentTime;
+                        const x = xAxis.getPixelForValue(currentTime);
+                        
+                        if (x >= xAxis.left && x <= xAxis.right) {
+                            ctx.save();
+                            ctx.beginPath();
+                            ctx.moveTo(x, yAxis.top);
+                            ctx.lineTo(x, yAxis.bottom);
+                            ctx.lineWidth = 2;
+                            ctx.strokeStyle = '#ff6b6b';
+                            ctx.stroke();
+                            
+                            ctx.fillStyle = '#ff6b6b';
+                            ctx.font = 'bold 12px Arial';
+                            ctx.fillText(currentTime.toFixed(2) + 's', x + 5, yAxis.top + 15);
+                            
+                            ctx.restore();
+                        }
+                    }
+                }
+            });
+        }
+        
+        // 更新图表数据
+        function updateChartData() {
+            if (!chart || !imuData) return;
+            
+            const datasets = [];
+            const colors = {
+                accX: '#ff6b6b',
+                accY: '#4ecdc4',
+                accZ: '#45b7d1',
+                accMag: '#dfe6e9',
+                AccX: '#f39c12',
+                AccY: '#e74c3c',
+                AccZ: '#3498db',
+                gyroX: '#f9ca24',
+                gyroY: '#f0932b',
+                gyroZ: '#eb4d4b',
+                skiX: '#a29bfe',
+                skiY: '#fd79a8',
+                skiZ: '#6c5ce7',
+                windowFiltered: '#10b981',
+                mainFiltered: '#3b82f6'
+            };
+            
+            const dataSource = isTransformed ? transformedData : imuData;
+            
+            // 原始IMU数据
+            const fields = [
+                { id: 'showAccX', key: 'accX', label: 'aX (m/s²)' },
+                { id: 'showAccY', key: 'accY', label: 'aY (m/s²)' },
+                { id: 'showAccZ', key: 'accZ', label: 'aZ (m/s²)' },
+                { id: 'showAccMag', key: 'accMag', label: '|a| (m/s²)' },
+                { id: 'showAccGX', key: 'AccX', label: 'Ax (m/s²)' },
+                { id: 'showAccGY', key: 'AccY', label: 'Ay (m/s²)' },
+                { id: 'showAccGZ', key: 'AccZ', label: 'Az (m/s²)' },
+                { id: 'showGyroX', key: 'gyroX', label: 'Gx (°/s)' },
+                { id: 'showGyroY', key: 'gyroY', label: 'Gy (°/s)' },
+                { id: 'showGyroZ', key: 'gyroZ', label: 'Gz (°/s)' }
+            ];
+            
+            // 转换后的数据
+            if (isTransformed) {
+                fields.push(
+                    { id: 'showSkiX', key: 'skiX', label: 'X-Roll/立刃 (°/s)' },
+                    { id: 'showSkiY', key: 'skiY', label: 'Y-Pitch/俯仰 (°/s)' },
+                    { id: 'showSkiZ', key: 'skiZ', label: 'Z-Yaw/偏航 (°/s)' }
+                );
+            }
+            
+            fields.forEach(field => {
+                const checkbox = document.getElementById(field.id);
+                if (checkbox && checkbox.checked) {
+                    datasets.push({
+                        label: field.label,
+                        data: dataSource.map(d => ({
+                            x: d.relativeTime / 1000,
+                            y: d[field.key] || 0
+                        })),
+                        borderColor: colors[field.key],
+                        backgroundColor: colors[field.key] + '20',
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        tension: 0.1
+                    });
+                }
+            });
+            
+            // 滤波信号
+            if (turnDetectionResults && isTransformed) {
+                if (document.getElementById('showWindowFiltered').checked && windowFiltered) {
+                    datasets.push({
+                        label: '0.5Hz窗口滤波',
+                        data: windowFiltered.map((val, idx) => ({
+                            x: transformedData[idx].relativeTime / 1000,
+                            y: val
+                        })),
+                        borderColor: colors.windowFiltered,
+                        backgroundColor: colors.windowFiltered + '20',
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        tension: 0.1,
+                        borderDash: [5, 5]
+                    });
+                }
+                
+                if (document.getElementById('showMainFiltered').checked && mainFiltered) {
+                    datasets.push({
+                        label: '3Hz主滤波',
+                        data: mainFiltered.map((val, idx) => ({
+                            x: transformedData[idx].relativeTime / 1000,
+                            y: val
+                        })),
+                        borderColor: colors.mainFiltered,
+                        backgroundColor: colors.mainFiltered + '20',
+                        borderWidth: 3,
+                        pointRadius: 0,
+                        tension: 0.1
+                    });
+                }
+                
+                // 标记转弯
+                if (turnDetectionResults.turns && turnDetectionResults.turns.length > 0) {
+                    // 转弯标记数据集
+                    const turnMarkers = {
+                        label: `转弯检测 (${turnDetectionResults.turns.length}个)`,
+                        data: turnDetectionResults.turns.map(turn => ({
+                            x: transformedData[turn.peakIndex].relativeTime / 1000,
+                            y: turn.peakValue
+                        })),
+                        borderColor: '#ef4444',
+                        backgroundColor: '#ef444480',
+                        pointRadius: 8,
+                        pointHoverRadius: 10,
+                        showLine: false,
+                        type: 'scatter'
+                    };
+                    datasets.push(turnMarkers);
+                    
+                    // 在控制台输出转弯详情
+                    console.log('检测到的转弯:');
+                    turnDetectionResults.turns.forEach((turn, idx) => {
+                        console.log(`转弯${idx+1}: 时间=${turn.peakTime.toFixed(2)}s, ` +
+                                  `幅度=${turn.amplitude.toFixed(1)}°/s, ` +
+                                  `Roll/Pitch比=${turn.rollPitchRatio.toFixed(1)}`);
+                    });
+                }
+            }
+            
+            chart.data.datasets = datasets;
+            chart.update('none');
+        }
+        
+        // 解析IMU数据
+        function parseIMUData(content) {
+            const lines = content.trim().split('\n');
+            if (lines.length < 2) return null;
+            
+            const headers = lines[0].split(',').map(h => h.trim());
+            console.log('IMU数据列:', headers);
+            
+            const data = [];
+            
+            for (let i = 1; i < lines.length; i++) {
+                const values = lines[i].split(',').map(v => v.trim());
+                if (values.length < headers.length) continue;
+                
+                const row = {};
+                headers.forEach((header, idx) => {
+                    row[header] = values[idx];
+                });
+                
+                const timeStr = row['time'];
+                if (!timeStr) continue;
+                
+                data.push({
+                    time: timeStr,
+                    timeMs: timeToMilliseconds(timeStr),
+                    timestamp: parseFloat(row['timestamp']) || 0,
+                    accX: parseFloat(row['aX(m/s²)']) || 0,
+                    accY: parseFloat(row['aY(m/s²)']) || 0,
+                    accZ: parseFloat(row['aZ(m/s²)']) || 0,
+                    accMag: parseFloat(row['|a|(m/s²)']) || 0,
+                    AccX: parseFloat(row['Ax(m/s²)']) || 0,
+                    AccY: parseFloat(row['Ay(m/s²)']) || 0,
+                    AccZ: parseFloat(row['Az(m/s²)']) || 0,
+                    gyroX: parseFloat(row['Gx(°/s)']) || 0,
+                    gyroY: parseFloat(row['Gy(°/s)']) || 0,
+                    gyroZ: parseFloat(row['Gz(°/s)']) || 0,
+                    state: row['state'] || 'unknown'
+                });
+            }
+            
+            if (data.length > 0) {
+                imuStartTimeStr = data[0].time;
+                imuEndTimeStr = data[data.length - 1].time;
+                
+                console.log(`IMU数据时间范围: ${imuStartTimeStr} - ${imuEndTimeStr}`);
+                console.log(`数据点数: ${data.length}`);
+            }
+            
+            return data;
+        }
+        
+        // 对齐数据
+        function alignData() {
+            if (!videoStartTimeStr || !originalIMUData || originalIMUData.length === 0) {
+                showAlert('请先设置视频开始时间并加载IMU数据', 'warning');
+                return;
+            }
+            
+            const videoStartMs = timeToMilliseconds(videoStartTimeStr);
+            const videoEndMs = videoStartMs + video.duration * 1000;
+            
+            imuData = originalIMUData.filter(d => {
+                return d.timeMs >= videoStartMs && d.timeMs <= videoEndMs;
+            });
+            
+            if (imuData.length === 0) {
+                showAlert('视频时间范围内没有找到IMU数据', 'error');
+                document.getElementById('syncIndicator').classList.add('out-of-sync');
+                return;
+            }
+            
+            imuData = imuData.map(d => ({
+                ...d,
+                relativeTime: d.timeMs - videoStartMs + currentOffset
+            }));
+            
+            // 如果有变换矩阵，自动应用变换
+            if (R_bi) {
+                transformData();
+            }
+            
+            updateChartData();
+            
+            document.getElementById('syncIndicator').classList.remove('out-of-sync');
+            showAlert(`成功对齐! 找到 ${imuData.length} 个数据点`, 'success');
+        }
+        
+        // 更新当前状态
+        function updateCurrentStatus() {
+            if (!video || !videoStartTimeStr) return;
+            
+            const currentVideoMs = video.currentTime * 1000;
+            const currentAbsoluteMs = timeToMilliseconds(videoStartTimeStr) + currentVideoMs + currentOffset;
+            const currentTimeStr = millisecondsToTime(currentAbsoluteMs);
+            
+            document.getElementById('currentIMUTime').textContent = currentTimeStr;
+        }
+        
+        // 设置视频开始时间
+        function setVideoStartTime() {
+            const timeInput = document.getElementById('videoTimeInput').value;
+            if (!timeInput) {
+                showAlert('请输入视频开始时间', 'error');
+                return;
+            }
+            
+            if (timeToMilliseconds(timeInput) === null) {
+                showAlert('时间格式错误! 请使用 HH:MM:SS.mm 格式（精确到厘秒）', 'error');
+                return;
+            }
+            
+            videoStartTimeStr = timeInput;
+            document.getElementById('videoStartTime').textContent = videoStartTimeStr;
+            
+            if (originalIMUData && originalIMUData.length > 0) {
+                alignData();
+            }
+            
+            showAlert('视频开始时间已设置', 'success');
+        }
+        
+        // 精细调整时间
+        function adjustTime(ms) {
+            const newTime = video.currentTime + ms / 1000;
+            if (newTime >= 0 && newTime <= video.duration) {
+                video.currentTime = newTime;
+            }
+        }
+        
+        // 视频文件上传处理
+        document.getElementById('videoInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const url = URL.createObjectURL(file);
+                video.src = url;
+                video.style.display = 'block';
+                document.getElementById('videoPlaceholder').style.display = 'none';
+                
+                video.addEventListener('loadedmetadata', function() {
+                    slider.max = video.duration * 1000;
+                    document.getElementById('videoDuration').textContent = formatDuration(video.duration);
+                    showAlert('视频已加载，请设置视频的开始时间（HH:MM:SS.mm）', 'info');
+                });
+            }
+        });
+        
+        // IMU数据上传处理
+        document.getElementById('imuInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    try {
+                        originalIMUData = parseIMUData(event.target.result);
+                        
+                        if (originalIMUData && originalIMUData.length > 0) {
+                            if (videoStartTimeStr && video.duration) {
+                                alignData();
+                            } else {
+                                showAlert('IMU数据已加载，请设置视频开始时间以进行对齐', 'info');
+                            }
+                            
+                            // 重置状态
+                            isTransformed = false;
+                            document.getElementById('dataTypeIndicator').textContent = '原始数据';
+                            document.getElementById('dataTypeIndicator').className = 'data-type-indicator raw';
+                            turnDetectionResults = null;
+                        } else {
+                            showAlert('无法解析IMU数据文件', 'error');
+                        }
+                    } catch (error) {
+                        console.error('解析IMU数据时出错:', error);
+                        showAlert('解析数据时出错: ' + error.message, 'error');
+                    }
+                };
+                reader.readAsText(file);
+            }
+        });
+        
+        // 滑块控制
+        slider.addEventListener('input', function(e) {
+            const timeMs = parseInt(e.target.value);
+            if (video.src) {
+                video.currentTime = timeMs / 1000;
+            }
+            document.getElementById('sliderTime').textContent = formatPlayTime(timeMs / 1000);
+            updateCurrentStatus();
+        });
+        
+        // 视频时间更新
+        video.addEventListener('timeupdate', function() {
+            const currentMs = video.currentTime * 1000;
+            slider.value = currentMs;
+            document.getElementById('currentTime').textContent = formatPlayTime(video.currentTime);
+            document.getElementById('sliderTime').textContent = formatPlayTime(video.currentTime);
+            updateCurrentStatus();
+            
+            if (chart) {
+                chart.update('none');
+            }
+        });
+        
+        // 复选框变化监听
+        document.querySelectorAll('.checkbox-group input[type="checkbox"]').forEach(checkbox => {
+            checkbox.addEventListener('change', updateChartData);
+        });
+        
+        // 初始化
+        initChart();
+        
+        // 动画循环
+        function animate() {
+            if (video && !video.paused && chart) {
+                chart.update('none');
+            }
+            requestAnimationFrame(animate);
+        }
+        animate();
+    </script>
+</body>
+</html>

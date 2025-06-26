@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>传感器数据可视化分割工具</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #f5f5f5;
+            color: #333;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        h1 {
+            font-size: 2rem;
+            margin-bottom: 1.5rem;
+            color: #2c3e50;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .card h2 {
+            font-size: 1.3rem;
+            margin-bottom: 1rem;
+            color: #34495e;
+        }
+        
+        .upload-area {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        
+        .btn-primary {
+            background-color: #3498db;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background-color: #2980b9;
+        }
+        
+        .btn-success {
+            background-color: #27ae60;
+            color: white;
+        }
+        
+        .btn-success:hover {
+            background-color: #229954;
+        }
+        
+        .btn-secondary {
+            background-color: #95a5a6;
+            color: white;
+        }
+        
+        .btn-secondary:hover {
+            background-color: #7f8c8d;
+        }
+        
+        .file-info {
+            margin-top: 15px;
+            color: #666;
+            font-size: 0.9rem;
+        }
+        
+        .series-controls {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .series-btn {
+            padding: 8px 16px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            background: #f8f9fa;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: center;
+        }
+        
+        .series-btn.active {
+            background: #e3f2fd;
+            border-color: #3498db;
+            color: #2980b9;
+        }
+        
+        .chart-container {
+            position: relative;
+            height: 300px;
+            margin: 20px 0;
+        }
+        
+        .chart-wrapper {
+            margin-bottom: 30px;
+        }
+        
+        .chart-title {
+            font-size: 1.1rem;
+            margin-bottom: 10px;
+            color: #555;
+        }
+        
+        .range-info {
+            background: #e8f4f8;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        
+        .export-controls {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+        
+        .help-text {
+            color: #666;
+            font-size: 0.9rem;
+            margin-bottom: 15px;
+        }
+        
+        .hidden {
+            display: none;
+        }
+        
+        #fileInput {
+            display: none;
+        }
+        
+        .icon {
+            width: 20px;
+            height: 20px;
+            display: inline-block;
+            vertical-align: middle;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>传感器数据可视化分割工具</h1>
+        
+        <!-- 文件上传区域 -->
+        <div class="card">
+            <h2>上传数据文件</h2>
+            <div class="upload-area">
+                <div>
+                    <p class="help-text">支持包含传感器数据的TXT或CSV文件</p>
+                </div>
+                <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">
+                    <span class="icon">📁</span>
+                    选择文件
+                </button>
+                <input type="file" id="fileInput" accept=".txt,.csv" onchange="handleFileUpload(event)">
+            </div>
+            <div id="fileInfo" class="file-info hidden"></div>
+        </div>
+        
+        <!-- 数据系列选择器 -->
+        <div id="seriesSelector" class="card hidden">
+            <h2>选择显示的数据系列</h2>
+            <div class="series-controls">
+                <button class="series-btn active" data-series="acceleration">加速度</button>
+                <button class="series-btn active" data-series="gyroscope">角速度</button>
+                <button class="series-btn active" data-series="angle">角度</button>
+                <button class="series-btn" data-series="magnetic">磁场</button>
+                <button class="series-btn" data-series="quaternion">四元数</button>
+                <button class="series-btn" data-series="temperature">温度</button>
+            </div>
+        </div>
+        
+        <!-- 图表区域 -->
+        <div id="chartsArea" class="card hidden">
+            <h2>数据图表 <span class="help-text">(拖动鼠标选择数据范围)</span></h2>
+            
+            <div id="accelerationChart" class="chart-wrapper">
+                <h3 class="chart-title">加速度 (g)</h3>
+                <div class="chart-container">
+                    <canvas id="accelCanvas"></canvas>
+                </div>
+            </div>
+            
+            <div id="gyroscopeChart" class="chart-wrapper">
+                <h3 class="chart-title">角速度 (°/s)</h3>
+                <div class="chart-container">
+                    <canvas id="gyroCanvas"></canvas>
+                </div>
+            </div>
+            
+            <div id="angleChart" class="chart-wrapper">
+                <h3 class="chart-title">角度 (°)</h3>
+                <div class="chart-container">
+                    <canvas id="angleCanvas"></canvas>
+                </div>
+            </div>
+            
+            <div id="magneticChart" class="chart-wrapper hidden">
+                <h3 class="chart-title">磁场 (uT)</h3>
+                <div class="chart-container">
+                    <canvas id="magneticCanvas"></canvas>
+                </div>
+            </div>
+            
+            <div id="quaternionChart" class="chart-wrapper hidden">
+                <h3 class="chart-title">四元数</h3>
+                <div class="chart-container">
+                    <canvas id="quaternionCanvas"></canvas>
+                </div>
+            </div>
+            
+            <div id="temperatureChart" class="chart-wrapper hidden">
+                <h3 class="chart-title">温度 (°C)</h3>
+                <div class="chart-container">
+                    <canvas id="tempCanvas"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 数据分割和导出区域 -->
+        <div id="exportArea" class="card hidden">
+            <h2>数据分割和导出</h2>
+            <div id="rangeInfo" class="range-info hidden"></div>
+            <div id="exportControls" class="export-controls">
+                <button class="btn btn-success" onclick="exportData('txt')">
+                    <span class="icon">💾</span>
+                    导出为 TXT
+                </button>
+                <button class="btn btn-primary" onclick="exportData('csv')">
+                    <span class="icon">💾</span>
+                    导出为 CSV
+                </button>
+                <button class="btn btn-secondary" onclick="clearSelection()">
+                    <span class="icon">✂️</span>
+                    清除选择
+                </button>
+            </div>
+            <p id="noSelectionText" class="help-text">请在图表上拖动鼠标选择要分割的数据范围</p>
+        </div>
+    </div>
+
+    <script>
+        let rawData = [];
+        let fileName = '';
+        let charts = {};
+        let selectedRange = { start: null, end: null };
+        let isSelecting = false;
+        let selectingChart = null;
+        
+        // 数据系列映射
+        const seriesMap = {
+            acceleration: ['加速度X', '加速度Y', '加速度Z'],
+            gyroscope: ['角速度X', '角速度Y', '角速度Z'],
+            angle: ['角度X', '角度Y', '角度Z'],
+            magnetic: ['磁场X', '磁场Y', '磁场Z'],
+            quaternion: ['四元数0', '四元数1', '四元数2', '四元数3'],
+            temperature: ['温度']
+        };
+        
+        // 图表颜色
+        const colors = {
+            x: 'rgb(54, 162, 235)',
+            y: 'rgb(75, 192, 192)',
+            z: 'rgb(255, 159, 64)',
+            single: 'rgb(255, 99, 132)',
+            quaternion: ['rgb(153, 102, 255)', 'rgb(255, 205, 86)', 'rgb(255, 99, 132)', 'rgb(54, 162, 235)']
+        };
+        
+        // 解析数据文件
+        function parseDataFile(content) {
+            const lines = content.trim().split('\n');
+            const headers = lines[0].split('\t');
+            
+            const data = lines.slice(1).map((line, index) => {
+                const values = line.split('\t');
+                const row = { _index: index };
+                
+                headers.forEach((header, i) => {
+                    if (header === '时间') {
+                        row.time = values[i];
+                    } else if (header === '设备名称') {
+                        row.device = values[i];
+                    } else {
+                        const match = header.match(/(.+)\((.+)\)/);
+                        if (match) {
+                            const [, name] = match;
+                            row[name] = parseFloat(values[i]) || 0;
+                        }
+                    }
+                });
+                
+                return row;
+            });
+            
+            return data;
+        }
+        
+        // 处理文件上传
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            fileName = file.name;
+            const reader = new FileReader();
+            
+            reader.onload = (e) => {
+                const content = e.target.result;
+                rawData = parseDataFile(content);
+                
+                // 更新UI
+                document.getElementById('fileInfo').innerHTML = 
+                    '当前文件：<strong>' + fileName + '</strong> | 数据点数：<strong>' + rawData.length + '</strong>';
+                document.getElementById('fileInfo').classList.remove('hidden');
+                document.getElementById('seriesSelector').classList.remove('hidden');
+                document.getElementById('chartsArea').classList.remove('hidden');
+                document.getElementById('exportArea').classList.remove('hidden');
+                
+                // 初始化图表
+                initCharts();
+                updateCharts();
+            };
+            
+            reader.readAsText(file);
+        }
+        
+        // 初始化图表
+        function initCharts() {
+            // 销毁已存在的图表
+            Object.values(charts).forEach(chart => chart.destroy());
+            charts = {};
+            
+            // 创建加速度图表
+            charts.acceleration = createChart('accelCanvas', seriesMap.acceleration, 
+                [colors.x, colors.y, colors.z]);
+            
+            // 创建角速度图表
+            charts.gyroscope = createChart('gyroCanvas', seriesMap.gyroscope, 
+                [colors.x, colors.y, colors.z]);
+            
+            // 创建角度图表
+            charts.angle = createChart('angleCanvas', seriesMap.angle, 
+                [colors.x, colors.y, colors.z]);
+            
+            // 创建磁场图表
+            charts.magnetic = createChart('magneticCanvas', seriesMap.magnetic, 
+                [colors.x, colors.y, colors.z]);
+            
+            // 创建四元数图表
+            charts.quaternion = createChart('quaternionCanvas', seriesMap.quaternion, 
+                colors.quaternion);
+            
+            // 创建温度图表
+            charts.temperature = createChart('tempCanvas', seriesMap.temperature, 
+                [colors.single]);
+        }
+        
+        // 创建单个图表
+        function createChart(canvasId, dataKeys, colors) {
+            const ctx = document.getElementById(canvasId).getContext('2d');
+            
+            const datasets = dataKeys.map((key, index) => ({
+                label: key,
+                data: rawData.map(row => row[key]),
+                borderColor: colors[index],
+                backgroundColor: colors[index] + '20',
+                borderWidth: 2,
+                pointRadius: 0,
+                tension: 0.1
+            }));
+            
+            const chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: rawData.map((_, i) => i),
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        },
+                        tooltip: {
+                            callbacks: {
+                                title: function(context) {
+                                    const index = context[0].dataIndex;
+                                    return '索引: ' + index + ' | 时间: ' + (rawData[index].time || '');
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            display: true,
+                            title: {
+                                display: true,
+                                text: '数据索引'
+                            }
+                        },
+                        y: {
+                            display: true,
+                            title: {
+                                display: true,
+                                text: '值'
+                            }
+                        }
+                    },
+                    onHover: (event, activeElements) => {
+                        event.native.target.style.cursor = activeElements.length > 0 ? 'pointer' : 'default';
+                    }
+                }
+            });
+            
+            // 添加交互事件
+            const canvas = document.getElementById(canvasId);
+            canvas.addEventListener('mousedown', (e) => handleMouseDown(e, chart, canvasId));
+            canvas.addEventListener('mousemove', (e) => handleMouseMove(e, chart));
+            canvas.addEventListener('mouseup', handleMouseUp);
+            canvas.addEventListener('mouseleave', handleMouseUp);
+            
+            return chart;
+        }
+        
+        // 鼠标事件处理
+        function handleMouseDown(event, chart, chartId) {
+            const rect = event.target.getBoundingClientRect();
+            const x = event.clientX - rect.left;
+            const canvasPosition = Chart.helpers.getRelativePosition(event, chart);
+            const dataX = chart.scales.x.getValueForPixel(canvasPosition.x);
+            
+            if (dataX >= 0 && dataX < rawData.length) {
+                isSelecting = true;
+                selectingChart = chartId;
+                selectedRange.start = Math.round(dataX);
+                selectedRange.end = Math.round(dataX);
+                updateSelection();
+            }
+        }
+        
+        function handleMouseMove(event, chart) {
+            if (!isSelecting) return;
+            
+            const canvasPosition = Chart.helpers.getRelativePosition(event, chart);
+            const dataX = chart.scales.x.getValueForPixel(canvasPosition.x);
+            
+            if (dataX >= 0 && dataX < rawData.length) {
+                selectedRange.end = Math.round(dataX);
+                updateSelection();
+            }
+        }
+        
+        function handleMouseUp() {
+            isSelecting = false;
+            selectingChart = null;
+        }
+        
+        // 更新选择区域
+        function updateSelection() {
+            // 更新所有图表的背景色来显示选择区域
+            Object.entries(charts).forEach(([key, chart]) => {
+                const dataset = chart.data.datasets[0];
+                if (!dataset) return;
+                
+                const backgroundColor = new Array(rawData.length);
+                const start = Math.min(selectedRange.start, selectedRange.end);
+                const end = Math.max(selectedRange.start, selectedRange.end);
+                
+                for (let i = 0; i < rawData.length; i++) {
+                    if (i >= start && i <= end) {
+                        backgroundColor[i] = 'rgba(54, 162, 235, 0.2)';
+                    } else {
+                        backgroundColor[i] = 'transparent';
+                    }
+                }
+                
+                // 更新所有数据集的背景色
+                chart.data.datasets.forEach(ds => {
+                    ds.backgroundColor = backgroundColor;
+                });
+                
+                chart.update('none');
+            });
+            
+            // 更新范围信息
+            updateRangeInfo();
+        }
+        
+        // 更新范围信息
+        function updateRangeInfo() {
+            const rangeInfo = document.getElementById('rangeInfo');
+            const noSelectionText = document.getElementById('noSelectionText');
+            
+            if (selectedRange.start !== null && selectedRange.end !== null) {
+                const start = Math.min(selectedRange.start, selectedRange.end);
+                const end = Math.max(selectedRange.start, selectedRange.end);
+                const count = end - start + 1;
+                
+                rangeInfo.innerHTML = 
+                    '已选择数据范围：索引 <strong>' + start + '</strong> 到 <strong>' + end + '</strong>' +
+                    '<span style="margin-left: 10px;">(共 <strong>' + count + '</strong> 个数据点)</span>';
+                rangeInfo.classList.remove('hidden');
+                noSelectionText.classList.add('hidden');
+            } else {
+                rangeInfo.classList.add('hidden');
+                noSelectionText.classList.remove('hidden');
+            }
+        }
+        
+        // 清除选择
+        function clearSelection() {
+            selectedRange = { start: null, end: null };
+            
+            // 清除所有图表的背景色
+            Object.values(charts).forEach(chart => {
+                chart.data.datasets.forEach(ds => {
+                    ds.backgroundColor = 'transparent';
+                });
+                chart.update('none');
+            });
+            
+            updateRangeInfo();
+        }
+        
+        // 导出数据
+        function exportData(format) {
+            if (selectedRange.start === null || selectedRange.end === null) {
+                alert('请先选择要导出的数据范围');
+                return;
+            }
+            
+            const start = Math.min(selectedRange.start, selectedRange.end);
+            const end = Math.max(selectedRange.start, selectedRange.end);
+            const selectedData = rawData.slice(start, end + 1);
+            
+            let content = '';
+            
+            if (format === 'csv') {
+                // CSV格式
+                const headers = Object.keys(selectedData[0]).filter(key => key !== '_index');
+                content = headers.join(',') + '\n';
+                selectedData.forEach(row => {
+                    content += headers.map(header => row[header] || '').join(',') + '\n';
+                });
+            } else {
+                // TXT格式（原始格式）
+                const headerMap = {
+                    'time': '时间',
+                    'device': '设备名称',
+                    '加速度X': '加速度X(g)',
+                    '加速度Y': '加速度Y(g)',
+                    '加速度Z': '加速度Z(g)',
+                    '角速度X': '角速度X(°/s)',
+                    '角速度Y': '角速度Y(°/s)',
+                    '角速度Z': '角速度Z(°/s)',
+                    '角度X': '角度X(°)',
+                    '角度Y': '角度Y(°)',
+                    '角度Z': '角度Z(°)',
+                    '磁场X': '磁场X(uT)',
+                    '磁场Y': '磁场Y(uT)',
+                    '磁场Z': '磁场Z(uT)',
+                    '四元数0': '四元数0()',
+                    '四元数1': '四元数1()',
+                    '四元数2': '四元数2()',
+                    '四元数3': '四元数3()',
+                    '温度': '温度(°C)',
+                    '版本号': '版本号()',
+                    '电量': '电量(%)'
+                };
+                
+                const headers = Object.keys(selectedData[0]).filter(key => key !== '_index');
+                const txtHeaders = headers.map(h => headerMap[h] || h);
+                content = txtHeaders.join('\t') + '\n';
+                selectedData.forEach(row => {
+                    content += headers.map(header => row[header] || '').join('\t') + '\n';
+                });
+            }
+            
+            // 创建下载链接
+            const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = fileName.split('.')[0] + '_split_' + new Date().getTime() + '.' + format;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+        
+        // 数据系列切换
+        document.querySelectorAll('.series-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                this.classList.toggle('active');
+                const series = this.dataset.series;
+                const chartWrapper = document.getElementById(series + 'Chart');
+                
+                if (this.classList.contains('active')) {
+                    chartWrapper.classList.remove('hidden');
+                } else {
+                    chartWrapper.classList.add('hidden');
+                }
+            });
+        });
+        
+        // 更新图表数据
+        function updateCharts() {
+            Object.values(charts).forEach(chart => {
+                chart.update();
+            });
+        }
+    </script>
+</body>
+</html>
